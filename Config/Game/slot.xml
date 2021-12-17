@@ -1,0 +1,100 @@
+<!--
+	id: 唯一，图片类型标识 [1,13]
+	name: 图片名字
+	first:该图标出现在第1列的权重
+	second:该图标出现在第2列的权重
+	third:该图标出现在第3列的权重
+	fourth:该图标出现在第4列的权重
+	fifth:该图标出现在第5列的权重
+	sixth:该图标出现在第6列的权重
+	times2: 该图标2连返奖倍率
+	times3: 该图标3连返奖倍率
+	times4: 该图标4连返奖倍率
+	times5: 该图标5连返奖倍率
+	times6: 该图标6连返奖倍率
+-->
+<XGAME>
+
+<Simple>
+<elem id="1" name="香蕉" first="260" second="240" third="200" fourth="160" fifth="80" times2="1" times3="3" times4="10" times5="75" />
+<elem id="2" name="樱桃" first="80" second="80" third="80" fourth="60" fifth="80" times2="0" times3="5" times4="20" times5="120" />
+<elem id="3" name="柠檬" first="62" second="62" third="62" fourth="58" fifth="62" times2="0" times3="15" times4="40" times5="250" />
+<elem id="4" name="草莓" first="50" second="50" third="50" fourth="45" fifth="50" times2="0" times3="25" times4="50" times5="400" />
+<elem id="5" name="葡萄" first="41" second="41" third="41" fourth="38" fifth="41" times2="0" times3="30" times4="70" times5="550" />
+<elem id="6" name="西瓜" first="35" second="35" third="35" fourth="33" fifth="35" times2="0" times3="35" times4="80" times5="650" />
+<elem id="7" name="芒果" first="32" second="32" third="32" fourth="30" fifth="32" times2="0" times3="45" times4="100" times5="800" />
+<elem id="8" name="Bar-1" first="30" second="30" third="30" fourth="28" fifth="30" times2="0" times3="50" times4="125" times5="1000" />
+<elem id="9" name="Bar-2" first="26" second="26" third="26" fourth="24" fifth="26" times2="0" times3="75" times4="175" times5="1250" />
+<elem id="10" name="Bar-3" first="22" second="22" third="22" fourth="20" fifth="22" times2="0" times3="100" times4="200" times5="1750" />
+<elem id="11" name="Wild" first="25" second="23" third="15" fourth="10" fifth="3" times2="1" times3="10" times4="10" times5="1750" />
+<elem id="12" name="FreeSpins" first="15" second="15" third="15" fourth="10" fifth="5" times2="0" times3="5" times4="10" times5="20" />
+<elem id="13" name="Scatter" first="8" second="8" third="8" fourth="8" fifth="2" times2="0" times3="5" times4="20" times5="50" />
+</Simple>
+
+<Normal>
+<elem id="1" name="香蕉" first="260" second="240" third="200" fourth="160" fifth="80" times2="1" times3="3" times4="10" times5="75" />
+<elem id="2" name="樱桃" first="80" second="80" third="80" fourth="60" fifth="80" times2="0" times3="5" times4="20" times5="120" />
+<elem id="3" name="柠檬" first="62" second="62" third="62" fourth="58" fifth="62" times2="0" times3="15" times4="40" times5="250" />
+<elem id="4" name="草莓" first="50" second="50" third="50" fourth="45" fifth="50" times2="0" times3="25" times4="50" times5="400" />
+<elem id="5" name="葡萄" first="41" second="41" third="41" fourth="38" fifth="41" times2="0" times3="30" times4="70" times5="550" />
+<elem id="6" name="西瓜" first="35" second="35" third="35" fourth="33" fifth="35" times2="0" times3="35" times4="80" times5="650" />
+<elem id="7" name="芒果" first="32" second="32" third="32" fourth="30" fifth="32" times2="0" times3="45" times4="100" times5="800" />
+<elem id="8" name="Bar-1" first="30" second="30" third="30" fourth="28" fifth="30" times2="0" times3="50" times4="125" times5="1000" />
+<elem id="9" name="Bar-2" first="26" second="26" third="26" fourth="24" fifth="26" times2="0" times3="75" times4="175" times5="1250" />
+<elem id="10" name="Bar-3" first="22" second="22" third="22" fourth="20" fifth="22" times2="0" times3="100" times4="200" times5="1750" />
+<elem id="11" name="Wild" first="25" second="23" third="15" fourth="10" fifth="3" times2="1" times3="10" times4="10" times5="1750" />
+<elem id="12" name="FreeSpins" first="15" second="15" third="15" fourth="10" fifth="5" times2="0" times3="5" times4="10" times5="20" />
+<elem id="13" name="Scatter" first="8" second="8" third="8" fourth="8" fifth="2" times2="0" times3="5" times4="20" times5="50" />
+</Normal>
+
+
+<Hard>
+<elem id="1" name="香蕉" first="260" second="240" third="200" fourth="160" fifth="80" times2="1" times3="3" times4="10" times5="75" />
+<elem id="2" name="樱桃" first="80" second="80" third="80" fourth="60" fifth="80" times2="0" times3="5" times4="20" times5="120" />
+<elem id="3" name="柠檬" first="62" second="62" third="62" fourth="58" fifth="62" times2="0" times3="15" times4="40" times5="250" />
+<elem id="4" name="草莓" first="50" second="50" third="50" fourth="45" fifth="50" times2="0" times3="25" times4="50" times5="400" />
+<elem id="5" name="葡萄" first="41" second="41" third="41" fourth="38" fifth="41" times2="0" times3="30" times4="70" times5="550" />
+<elem id="6" name="西瓜" first="35" second="35" third="35" fourth="33" fifth="35" times2="0" times3="35" times4="80" times5="650" />
+<elem id="7" name="芒果" first="32" second="32" third="32" fourth="30" fifth="32" times2="0" times3="45" times4="100" times5="800" />
+<elem id="8" name="Bar-1" first="30" second="30" third="30" fourth="28" fifth="30" times2="0" times3="50" times4="125" times5="1000" />
+<elem id="9" name="Bar-2" first="26" second="26" third="26" fourth="24" fifth="26" times2="0" times3="75" times4="175" times5="1250" />
+<elem id="10" name="Bar-3" first="22" second="22" third="22" fourth="20" fifth="22" times2="0" times3="100" times4="200" times5="1750" />
+<elem id="11" name="Wild" first="25" second="23" third="15" fourth="10" fifth="3" times2="1" times3="10" times4="10" times5="1750" />
+<elem id="12" name="FreeSpins" first="15" second="15" third="15" fourth="10" fifth="5" times2="0" times3="5" times4="10" times5="20" />
+<elem id="13" name="Scatter" first="8" second="8" third="8" fourth="8" fifth="2" times2="0" times3="5" times4="20" times5="50" />
+</Hard>
+
+
+<FreeSpin>
+<elem id="1" name="香蕉" first="0" second="0" third="0" fourth="0" fifth="0" times2="1" times3="3" times4="10" times5="75" />
+<elem id="2" name="樱桃" first="80" second="80" third="80" fourth="60" fifth="80" times2="0" times3="5" times4="20" times5="120" />
+<elem id="3" name="柠檬" first="62" second="62" third="62" fourth="58" fifth="62" times2="0" times3="15" times4="40" times5="250" />
+<elem id="4" name="草莓" first="50" second="50" third="50" fourth="45" fifth="50" times2="0" times3="25" times4="50" times5="400" />
+<elem id="5" name="葡萄" first="41" second="41" third="41" fourth="38" fifth="41" times2="0" times3="30" times4="70" times5="550" />
+<elem id="6" name="西瓜" first="35" second="35" third="35" fourth="33" fifth="35" times2="0" times3="35" times4="80" times5="650" />
+<elem id="7" name="芒果" first="32" second="32" third="32" fourth="30" fifth="32" times2="0" times3="45" times4="100" times5="800" />
+<elem id="8" name="Bar-1" first="30" second="30" third="30" fourth="28" fifth="30" times2="0" times3="50" times4="125" times5="1000" />
+<elem id="9" name="Bar-2" first="26" second="26" third="26" fourth="24" fifth="26" times2="0" times3="75" times4="175" times5="1250" />
+<elem id="10" name="Bar-3" first="22" second="22" third="22" fourth="20" fifth="22" times2="0" times3="100" times4="200" times5="1750" />
+<elem id="11" name="Wild" first="30" second="30" third="25" fourth="10" fifth="3" times2="1" times3="10" times4="10" times5="1750" />
+<elem id="12" name="FreeSpins" first="0" second="0" third="0" fourth="0" fifth="0" times2="0" times3="5" times4="10" times5="20" />
+<elem id="13" name="Scatter" first="8" second="8" third="8" fourth="8" fifth="2" times2="0" times3="5" times4="20" times5="50" />
+</FreeSpin>
+
+
+<LineInfo>
+<!-- id表示第几条线,colx表示这条线第x个图标所在行号,为0时表示没有这一列  最多10列-->
+<elem id="1" name="第1条线" col1="2" col2="2" col3="2" col4="2" col5="2" col6="0" col7="0" col8="0" col9="0" col10="0" />
+<elem id="2" name="第2条线" col1="1" col2="1" col3="1" col4="1" col5="1" col6="0" col7="0" col8="0" col9="0" col10="0" />
+<elem id="3" name="第3条线" col1="3" col2="3" col3="3" col4="3" col5="3" col6="0" col7="0" col8="0" col9="0" col10="0" />
+<elem id="4" name="第4条线" col1="1" col2="2" col3="3" col4="2" col5="1" col6="0" col7="0" col8="0" col9="0" col10="0" />
+<elem id="5" name="第5条线" col1="3" col2="2" col3="1" col4="2" col5="3" col6="0" col7="0" col8="0" col9="0" col10="0" />
+<elem id="6" name="第6条线" col1="1" col2="1" col3="2" col4="1" col5="1" col6="0" col7="0" col8="0" col9="0" col10="0" />
+<elem id="7" name="第7条线" col1="3" col2="3" col3="2" col4="3" col5="3" col6="0" col7="0" col8="0" col9="0" col10="0" />
+<elem id="8" name="第8条线" col1="2" col2="3" col3="3" col4="3" col5="2" col6="0" col7="0" col8="0" col9="0" col10="0" />
+<elem id="9" name="第9条线" col1="2" col2="1" col3="1" col4="1" col5="2" col6="0" col7="0" col8="0" col9="0" col10="0" />
+<elem id="10" name="第10条线" col1="2" col2="1" col3="2" col4="1" col5="2" col6="0" col7="0" col8="0" col9="0" col10="0" />
+</LineInfo>
+
+
+</XGAME>

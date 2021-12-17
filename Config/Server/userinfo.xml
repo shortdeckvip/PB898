@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<!--
+	 roomod: false-普通模式，true-房间模式
+-->
+<SERVER>
+	<srv id="1048577" mongoid="7000" redisid="5000"/>
+</SERVER>

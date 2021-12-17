@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<DB>
+	<mysql>
+		<ns name="server_898_mini" sign="server_mini_schema"/>
+	</mysql>
+	<mongo>
+		<ns name="wallet_898.money" sign="WalletMoney"/>
+		<ns name="accounts_898.userinfo" sign="AccountsUserInfo"/>
+		<ns name="accounts_898.utexasstatis" sign="AccountsUserTexasStatis"/>
+		<ns name="accounts_898.utexasdstatis" sign="AccountsUserTexasDayStatis"/>
+		<ns name="accounts_898.userkvdata" sign="AccountsUserKVData"/>
+		<ns name="accounts_898.robot" sign="AccountsRobot"/>
+		<ns name="global_898.jackpot" sign="GlobalJackPot"/>
+		<ns name="global_898.rank_most_win_today" sign="GlobalRankMostWinToday"/>
+		<ns name="global_898.rank_history_mostwin_today" sign="GlobalRankHistoryMostWinToday"/>
+		<ns name="global_898.rank_most_win_round" sign="GlobalRankMostWinRound"/>
+		<ns name="global_898.rank_history_mostwin_round" sign="GlobalRankHistoryMostWinRound"/>
+		<ns name="global_898.jackpot_most_win" sign="GlobalJackpotMostWin"/>
+		<ns name="global_898.jackpot_recent_win" sign="GlobalJackpotRecent"/>
+	</mongo>
+	<redis>
+		<ns name="OFFLINE" sign="RedisKeyOffline"/>
+		<ns name="ONLINE" sign="RedisKeyOnline"/>
+		<ns name="TOKEN|" sign="RedisKeyToken"/>
+		<ns name="CLICK|" sign="RedisKeyClick"/>
+		<ns name="GI|" sign="RedisKeyGi"/>
+		<ns name="LIST|MLOG" sign="RedisKeyListMLog"/>
+		<ns name="LIST|ROOMLOG" sign="RedisKeyListRoomLog"/>
+		<ns name="LIST|GAMELOG" sign="RedisKeyListGameLog"/>
+		<ns name="LIST|USERLOG" sign="RedisKeyListUserLog"/>
+		<ns name="LIST|GAME|" sign="RedisKeyListGame"/>
+		<ns name="LIST|BET|" sign="RedisKeyListBet"/>
+		<ns name="ROBOT|CURUID" sign="ReditKeyRobotCurUid"/>
+		<ns name="ROBOT|PLAYER" sign="ReditKeyRobotPlayer"/>
+	</redis>
+</DB>

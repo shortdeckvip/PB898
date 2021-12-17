@@ -1,0 +1,48 @@
+<!--
+	id: 全局唯一,JackPot ID
+	roomtype:会与配置的tablelist关联的桌子做检查
+	   1 金币
+	   2 豆子
+	initmoney: 初始启动奖金数量
+	deltabb：抽取x个bb的数额加入jackpot
+	name：名称
+	profitbb：每一局游戏玩家盈利数额达到x个bb时,触发抽水
+	fourkind：四条奖金百分比例
+	straightflush ：同花顺奖金百分比例
+	royalflush ：皇家同花顺奖金百分比例
+-->
+<XGAME>
+	<table id="1" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+	<table id="2" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+	<table id="3" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+	<table id="4" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+	<table id="5" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+	<table id="6" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+	<table id="7" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+	<table id="8" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+	<table id="9" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+	<table id="10" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+	
+	<table id="11" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="12" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="13" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="14" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="15" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="16" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="17" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="18" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="19" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="20" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	
+	<table id="21" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="22" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="23" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="24" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="25" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="26" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="27" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="28" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="29" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	<table id="30" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
+	
+</XGAME>

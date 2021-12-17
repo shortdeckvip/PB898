@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<SERVER>
+	<srv id="1114113" redisid="5000" mongoid="7000" mongorepset="" mongolog=""/>
+</SERVER>

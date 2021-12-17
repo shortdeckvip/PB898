@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<SERVER>
+	<timezone>
+		<srv id="9000" addr="/usr/share/zoneinfo/Asia/Calcutta"/>
+	</timezone>
+	<mutex>
+		<!--mutex server listening address-->
+		<srv id="131073" addr="access.poker.game:9972"/>
+	</mutex>
+	<access>
+		<!--id [196609,208609)为优先选用forward区域可以不需要配置exteraddr，[208609,∞ )区域为通用区域（可以转发内部或者外部消息）-->
+		<srv id="208699" addr="access.poker.game:9971" exteraddr="access.poker.game:9018" jsaddr=""/>
+		<!--srv id="208700" addr="access.poker.game:7843" exteraddr="access.poker.game:9022" jsaddr=""/-->
+	</access>
+	<php>
+		<!--phpserver addr tcp port exteraddr udp port-->
+		<srv id="1769473" addr="access.poker.game:9019" exteraddr="172.31.18.154:8412"/>
+	</php>
+	<mongo>
+		<!--mongodb sharding cluster with keyfile authentication-->
+		<!--srv id="1000" addr="mongodb://GAME:game12345@127.0.0.1:9020/admin?minPoolSize=3&amp;maxPoolSize=3"/-->
+		<!--mongodb one replica set with keyfile authentication-->
+		<srv id="7000" addr="mongodb://GAME:game12345@poker.demo.mongodb:5100,poker.demo.mongodb:5101,poker.demo.mongodb:5102/?authSource=admin&replicaSet=poker_demo"/>
+	</mongo>
+	<mysql>
+		<!--mysql 8.0+ X Protocol-->
+		<srv id="6000" addr="mysqlx://hwpksvr:serVer%403hw@localhost:33060/server_997_mini?ssl-mode=DISABLED&connect-timeout=5"/>
+	</mysql>
+	<redis>
+		<!--redis tcp or unix socket-->
+		<srv id="5000" addr="tcp://Ch1904@127.0.0.1:5002/0"/>
+		<srv id="5001" addr="unix://Ch1904@/tmp/redis5002.sock/1"/>
+	</redis>
+	<wallet>
+		<srv id="1101" addr="https://indibetwalletstage.com/api/indigames/wallet/%s?authToken=7813C5D2E72E16588C454E1F00E6A9AE"/>
+	</wallet>
+	<upstream>
+		<!--pass http from accessserver to endpoint-->
+		<srv id="8000" addr="http://172.31.18.154/hwgame/php/api/api.php"/>
+	</upstream>
+</SERVER>

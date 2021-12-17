@@ -1,0 +1,12 @@
+<!--
+	id: 唯一，场次ID,目前固定为1，不需要更改
+	roomtype: 1 金币 2 豆子
+	betarea: 下注区域
+			 赔率-limit-min-limit-max
+			 牛仔 公牛 平局 同花/连牌/同花连牌 对子(包含对A) 对子A 高牌/一对 两对 三条/顺子/同花 葫芦 金刚/同花顺/皇家同花顺
+	profitrate_threshold_lowerlimit: 盈利阈值触发收紧策略
+	fee: 收取盈利服务费率
+-->
+<XGAME>
+	<table id="1" roomtype="2" isib="1" carrybound="100000,1500000" chips="100,500,1000,5000,10000,50000,100000,500000" betarea="2-1-100000000;2-1-100000000;16-1-10000000" profitrate_threshold_lowerlimit="0.1" fee="0.1" min_onbank_moneycnt="500000" min_outbank_moneycnt="200000"/>
+</XGAME>

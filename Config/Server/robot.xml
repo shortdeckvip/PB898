@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<SERVER>
+	<!--
+		 create_interval: 毫秒，创建单个机器人间隔
+	 -->
+	<srv id="1" accessid="208699" create_interval="70" max_robot_num="1000" mongoid="7000" redisid="5001"/>
+</SERVER>

@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<SERVER>
+	<srv id="208699" forward_phpmsg="" webjs="" max_httpqueue="500" maxtask="10000" phpaddr="8000"/>
+</SERVER>
