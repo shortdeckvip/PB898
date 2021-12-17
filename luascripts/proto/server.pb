@@ -1,5 +1,5 @@
 
-Ï}
+ËÑ
 server.protonetwork.inter"M
 SharedSynData
 uids (Ruids
@@ -328,7 +328,41 @@ carrybound"2
 title (	Rtitle
 content (	Rcontent
 deadline (Rdeadline
-acid (Racid"√
+acid (Racid"¨
+PBUserProfitUpdateData
+uid (Ruid
+deposit (Rdeposit
+withdraw (Rwithdraw
+reviews (Rreviews
+profit (Rprofit
+	needchips (R	needchips
+	playchips (R	playchips
+balance (Rbalance
+rebated	 (Rrebated
+
+leftrebate
+ (R
+leftrebate
+mtime (Rmtime
+peak (Rpeak
+
+cresttimes (R
+cresttimes 
+troughtimes (Rtroughtimes
+	isrecycle (R	isrecycle"j
+PBUserProfitResultData
+uid (Ruid
+chips (Rchips
+res (Rres
+maxwin (Rmaxwin"h
+Game2UserUpdateProfitInfo
+ctx (Rctx9
+data (2%.network.inter.PBUserProfitUpdateDataRdata"ù
+Game2UserProfitResultReqResp
+ctx (Rctx
+matchid (Rmatchid
+roomid (Rroomid9
+data (2%.network.inter.PBUserProfitResultDataRdata"√
 PBTablePlayersEntry
 gameid (Rgameid
 roomtype (Rroomtype
@@ -572,11 +606,13 @@ $Game2StatisticSubCmd_MoneyChangedReq)
 USER_ROLE_TEXAS_SB
 USER_ROLE_TEXAS_BB	
 USER_ROLE_TEXAS_PLAYER
-*á
+*ﬁ
 Game2UserInfoSubCmd&
 "Game2UserInfoSubCmd_UserAtomUpdate 
 Game2UserInfoSubCmd_PostMail&
-"Game2UserInfoSubCmd_JackpotReqResp*@
+"Game2UserInfoSubCmd_JackpotReqResp(
+$Game2UserInfoSubCmd_UpdateProfitInfo+
+'Game2UserInfoSubCmd_ProfitResultReqResp*@
 MAILBOX_TYPE
 MAILBOX_TYPE_MAIL
 MAILBOX_TYPE_ANNOUNCE*;

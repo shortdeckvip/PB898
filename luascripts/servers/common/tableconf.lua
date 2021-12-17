@@ -215,6 +215,9 @@ local function loadMiniGameXml()
             if XML.attribute(tb, "id") then
                 MINIGAME_CONF[#MINIGAME_CONF].id = XML.intattribute(tb, "id")
             end
+            if XML.attribute(tb, "jpid") then
+                MINIGAME_CONF[#MINIGAME_CONF].jpid = XML.intattribute(tb, "jpid")
+            end
             if XML.attribute(tb, "max_bank_successive_cnt") then
                 MINIGAME_CONF[#MINIGAME_CONF].max_bank_successive_cnt = XML.intattribute(tb, "max_bank_successive_cnt")
             end

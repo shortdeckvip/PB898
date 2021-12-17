@@ -65,7 +65,7 @@ end
 local function parseGame2GameForward(srvid, linkid, msg)
     local rev = pb.decode("network.inter.PBGame2GameClientForward", msg)
 
-    log.info("parseGame2GameForward %s %s %s %s", rev.uid, rev.linkid, rev.maincmd, rev.subcmd)
+    log.info("parseGame2GameForward %s %s %s %s", rev.uid, tostring(rev.linkid), rev.maincmd, rev.subcmd)
     Dispatch(rev.uid, rev.linkid, rev.maincmd, rev.subcmd, rev.data)
 end
 

@@ -261,9 +261,9 @@ local function GetWinType(lineData, slotConf, type)
     for i = 2, 5, 1 do
         if lineData[i] == first then
             iNum = iNum + 1
-        elseif lineData[i] == 11 then -- Wild
+        elseif lineData[i] == 11 and first <= 11 then -- Wild
             iNum = iNum + 1
-        elseif first == 11 then
+        elseif first == 11 and lineData[i] <= 11 then
             first = lineData[i]
             iNum = iNum + 1
         else
@@ -1900,15 +1900,16 @@ function Room:getTotalProfitRate(currentBet, currentWin, isResult)
 
     --盈利率 = (投注总额*(1-投注进入jackpot比例) -  非jackpot中奖总额 ) / 投注总额*(1-投注进入jackpot比例)
     local percent = JACKPOT_CONF[self.conf.jpid].deltabb / 100.0
-    local profit_rate = totalbets > 0 and (totalbets * (1 - percent) - totalprofit) / totalbets * (1 - percent) or 0
+    local profit_rate = totalbets > 0 and (totalbets * (1 - percent) - totalprofit) / (totalbets * (1 - percent)) or 0
     if isResult then
         log.debug(
-            "getTotalProfitRate() currentBet=%s,currentWin=%s, percent=%s, totalbets=%s, totalprofit=%s",
+            "getTotalProfitRate() currentBet=%s,currentWin=%s, percent=%s, totalbets=%s, totalprofit=%s,profit_rate=%s",
             currentBet,
             currentWin,
             tostring(percent),
             totalbets,
-            totalprofit
+            totalprofit,
+            tostring(profit_rate)
         )
     end
     return profit_rate

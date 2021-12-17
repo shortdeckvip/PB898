@@ -2065,7 +2065,7 @@ function Room:chipin(uid, type, value)
     local function declare_func(seat, type, value)
         if seat.chiptype ~= pb.enum_id("network.cmd.PBRummyChipinType", "PBRummyChipinType_DECLARE") then
             log.error(
-                "idx(%s,%s,%s) uid(%s,%s) has not in declare state : %s",
+                "idx(%s,%s,%s) uid(%s,%s) has not in declare state",
                 self.id,
                 self.mid,
                 tostring(self.logid),

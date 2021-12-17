@@ -46,7 +46,7 @@ end
 
 -- 通知关服
 function RoomMgr:notifyStopServer(param)
-    for _, v in pairs(self.mgr) do    -- 遍历每一个房间 
+    for _, v in pairs(self.mgr) do -- 遍历每一个房间
         if v and type(v.tools) == "function" then
             v:tools(param)
         end
@@ -108,7 +108,7 @@ function RoomMgr:shrinkRoom()
     end
     for k, v in pairs(self.mgr) do
         roomcnt = roomcnt + 1
-        log.info("idx(%s,%s,%s) usercount %s", v.id, self.mid,tostring(self.logid), g.count(v.users))
+        log.info("idx(%s,%s,%s) usercount %s", v.id, self.mid, tostring(self.logid), g.count(v.users))
         if g.count(v.users) == 0 and not v:lock() then
             table.insert(emptyroom, k)
         else
@@ -138,7 +138,7 @@ end
 
 -- 找一个人数最多的未满的房间
 -- 参数 c：房间人数限制，默认为500
--- 参数 uid: 玩家ID   slot游戏中uid作为房间ID 
+-- 参数 uid: 玩家ID   slot游戏中uid作为房间ID
 function RoomMgr:getAvaiableRoom(c, uid)
     local cnt = 0
     local r = nil
@@ -313,7 +313,7 @@ function RoomMgr:getRoomNum()
 end
 
 -- 创建一个新房间
-function RoomMgr:createRoom(roomid)    
+function RoomMgr:createRoom(roomid)
     local id = roomid or Uniqueid:getUniqueid(self.mid, self.conf.maxtable) -- 获取唯一房间ID
     if id == -1 then -- 获取ID失败
         return nil
@@ -326,7 +326,7 @@ end
 function RoomMgr:destroyRoom(rid)
     local room = self.mgr[rid]
     if room then
-        log.info("idx(%s,%s,%s) destroy room", self.mid, room.id,tostring(self.logid))
+        log.info("idx(%s,%s,%s) destroy room", self.mid, room.id, tostring(self.logid))
         room:destroy()
         Uniqueid:putUniqueid(self.mid, room.id) -- 释放该房间ID
         room = nil

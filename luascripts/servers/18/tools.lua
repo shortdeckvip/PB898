@@ -1,10 +1,10 @@
-local pb = require('protobuf')
-local log = require(CLIBS['c_log'])
-local timer = require(CLIBS['c_timer'])
-local cjson = require('cjson')
-local net = require(CLIBS['c_net'])
-local global = require(CLIBS['c_global'])
-local redis = require(CLIBS['c_hiredis'])
+local pb = require("protobuf")
+local log = require(CLIBS["c_log"])
+local timer = require(CLIBS["c_timer"])
+local cjson = require("cjson")
+local net = require(CLIBS["c_net"])
+local global = require(CLIBS["c_global"])
+local redis = require(CLIBS["c_hiredis"])
 
 local TimerID = {
     TimerID_Once = {1, 3 * 1000}, --id, interval(ms), timestamp(ms)
@@ -31,7 +31,9 @@ local ServerID = {
     2686978,
     2686979,
     -- 42 TeenPattiBet
-    2752513
+    2752513,
+    -- 43 Slots
+    2818049
     --[[
     --26 texas
     1703937,
@@ -57,9 +59,9 @@ local ServerID = {
 local function forwardToGame(serverid, msg)
     return net.forward(
         serverid,
-        pb.enum_id('network.inter.ServerMainCmdID', 'ServerMainCmdID_Game2Game'),
-        pb.enum_id('network.inter.Game2GameSubCmdID', 'Game2GameSubCmdID_ToolsForward'),
-        pb.encode('network.inter.PBGame2GameToolsForward', msg)
+        pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Game"),
+        pb.enum_id("network.inter.Game2GameSubCmdID", "Game2GameSubCmdID_ToolsForward"),
+        pb.encode("network.inter.PBGame2GameToolsForward", msg)
     )
 end
 
@@ -67,9 +69,9 @@ local function onTaskOnce(tm)
     local msg = {
         matchid = 1,
         roomid = 65536,
-        jdata = cjson.encode({a = 1, b = 'str'})
+        jdata = cjson.encode({a = 1, b = "str"})
     }
-    log.info('sendto msg===> %s', cjson.encode(msg))
+    log.info("sendto msg===> %s", cjson.encode(msg))
     forwardToGame(2031617, msg)
 
     timer.cancel(tm, TimerID.TimerID_Once[1])
@@ -79,9 +81,9 @@ local function onNotiyStopServer(tm)
     local msg = {
         matchid = 0,
         roomid = 0,
-        jdata = cjson.encode({api = 'kickout'})
+        jdata = cjson.encode({api = "kickout"})
     }
-    log.info('sendto msg===> %s', cjson.encode(msg))
+    log.info("sendto msg===> %s", cjson.encode(msg))
 
     for _, v in ipairs(ServerID) do
         forwardToGame(v, msg)
@@ -94,11 +96,15 @@ local function onMiniGameProfit(tm)
     for _, v in ipairs(ServerID) do
         local room = {total_bets = {}, total_profit = {}, id = 65536}
         local gameid = v >> 16
-        if gameid == 31 or gameid == 32 or gameid == 35 or gameid == 42 then
+        if gameid == 31 or gameid == 32 or gameid == 35 or gameid == 42 or gameid == 43 then
             if gameid == 32 then
                 room.robottotal_bets = {}
                 room.robottotal_profit = {}
             end
+            if gameid == 43 then
+                room.id = gameid
+            end
+
             Utils:unSerializeMiniGame(room, v)
             local totalbet, totalprofit, bankertotalbet, bankertotalprofit = 0, 0, 0, 0
             for _, vv in pairs(room.total_bets) do
@@ -118,13 +124,13 @@ local function onMiniGameProfit(tm)
             if totalbet > 0 then
                 if gameid == 32 and bankertotalbet > 0 then
                     log.info(
-                        '%s profit_rate=%s banker_profit_rate=%s',
+                        "%s profit_rate=%s banker_profit_rate=%s",
                         gameid,
                         1 - totalprofit / totalbet,
                         bankertotalprofit / bankertotalbet
                     )
                 else
-                    log.info('%s profit_rate=%s', gameid, 1 - totalprofit / totalbet)
+                    log.info("%s profit_rate=%s", gameid, 1 - totalprofit / totalbet)
                 end
             end
         end
@@ -137,7 +143,7 @@ local function onUserKVData(tm)
     local uid = 1001
     local op = 0
     local v = {gameid = 43, bv = 100000, win = {{type = 1, cnt = 10}, {type = 2, cnt = 5}}}
-    local updata = {k = '1001|43', v = cjson.encode(v)}
+    local updata = {k = "1001|43", v = cjson.encode(v)}
     Utils:updateUserInfo({uid = uid, op = op, data = {updata}})
     timer.cancel(tm, TimerID.TimerID_Once[1])
 end
