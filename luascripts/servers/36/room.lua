@@ -31,7 +31,8 @@ local TimerID = {
     TimerID_Buyin = {12, 1000}, -- 买筹码定时器
     TimerID_Ready = {13, 5}, -- 准备剩余时长(秒)
     TimerID_Next = {14, 1000}, -- 下一个玩家出牌
-    TimerID_Expense = {15, 5000}
+    TimerID_Expense = {15, 5000},
+    TimerID_CheckRobot = {16, 5000}
 }
 
 -- 玩家状态
@@ -322,13 +323,49 @@ local function onCheck(self)
     g.call(doRun)
 end
 
+local function onCheckRobot(self)
+    local function doRun()
+        local all, r = self:count()
+        -- 检测机器人离开
+        if r > 1 and all == self.conf.maxuser then  -- 如果座位已坐满且不止一个机器人
+            for k, v in ipairs(self.seats) do
+                local user = self.users[v.uid]
+                if user and Utils:isRobot(user.api) then
+                    user.state = EnumUserState.Logout
+                    user.logoutts = global.ctsec() - 60
+                    break
+                end
+            end
+        end
+
+        -- 检测创建机器人
+        if r == 0 then
+            log.debug(
+                "idx(%s,%s,%s) notify create robot,all=%s,maxuser=%s",
+                self.id,
+                self.mid,
+                tostring(self.logid),
+                all,
+                self.conf.maxuser
+            )
+            if all < self.conf.maxuser - 1 then
+                Utils:notifyCreateRobot(
+                    self.conf.roomtype,
+                    self.mid,
+                    self.id,
+                    rand.rand_between(1, self.conf.maxuser - 1 - all)
+                )
+            end
+        end
+    end
+    g.call(doRun)
+end
+
 -- dqw 结算  结束定时器
 local function onFinish(self)
     local function doRun()
         log.info("idx(%s,%s) onFinish", self.id, self.mid)
         timer.cancel(self.timer, TimerID.TimerID_OnFinish[1])
-
-        self:checkLeave()
 
         Utils:broadcastSysChatMsgToAllUsers(self.notify_jackpot_msg) -- 广播消息(头奖)
         self.notify_jackpot_msg = nil
@@ -547,21 +584,6 @@ function Room:count()
     return c, r
 end
 
--- 检测让机器人离开
-function Room:checkLeave()
-    local c = self:count() -- 获取该桌坐下的玩家总数及坐下的机器人总数
-    if c > 2 then -- 如果超过2个玩家
-        for k, v in ipairs(self.seats) do
-            local user = self.users[v.uid]
-            if user then
-                if Utils:isRobot(user.api) then -- 如果是机器人
-                    self:userLeave(v.uid, user.linkid) -- 让机器人离开
-                    break
-                end
-            end
-        end
-    end
-end
 
 -- 玩家退出
 function Room:logout(uid)
@@ -2094,7 +2116,7 @@ function Room:userchipin(uid, type, values, client)
         end
         table.insert(self.sdata.users[uid].ugameinfo.texas.pre_bets, {uid = uid, bt = tostring(type), bv = fine})
     end
-    chipin_seat.bettingtime = global.ctsec() + 40000   -- 防止重复操作 2021-10-21
+    chipin_seat.bettingtime = global.ctsec() + 40000 -- 防止重复操作 2021-10-21
 
     -- 检测是否死亡结束
     if
@@ -2399,6 +2421,13 @@ function Room:finish()
                 v.profit
             )
 
+            --盈利扣水
+            if v.profit > 0 and (self.conf.rebate or 0) > 0 then
+                local rebate = math.floor(v.profit * self.conf.rebate)
+                v.profit = v.profit - rebate
+                v.chips = v.chips - rebate
+            end
+
             self.sdata.users = self.sdata.users or {}
             self.sdata.users[v.uid] = self.sdata.users[v.uid] or {}
             --self.sdata.users[v.uid].totalpureprofit = v.room_delta -- 纯盈利?
@@ -2422,7 +2451,8 @@ function Room:finish()
                     roomtype = self.conf.roomtype,
                     groupcard = "", -- cjson.encode(v:formatGroupCards())
                     finishType = self.finish_type, -- 结束方式:2：死亡结束 和 1：普通结束
-                    winTimes = self.m_multiple -- 输赢倍数：1,2,3,4
+                    winTimes = self.m_multiple, -- 输赢倍数：1,2,3,4
+                    playchips = 20 * (self.conf and self.conf.fee or 0) -- 2021-12-24
                 }
             )
 
@@ -2529,6 +2559,7 @@ function Room:check()
     timer.cancel(self.timer, TimerID.TimerID_HandCardsAnimation[1])
 
     timer.tick(self.timer, TimerID.TimerID_Check[1], TimerID.TimerID_Check[2], onCheck, self) -- 启动检测定时器
+    timer.tick(self.timer, TimerID.TimerID_CheckRobot[1], TimerID.TimerID_CheckRobot[2], onCheckRobot, self) -- 启动检测定时器
     -- else
     --     -- 立即开始游戏
     --     self:start()

@@ -109,18 +109,18 @@ local function onCheck(self)
         for k, v in ipairs(self.seats) do -- 遍历所有座位
             local user = v.uid and self.users[v.uid]
             if user then -- 如果该座位有玩家坐下
-                local userID = v.uid  -- 玩家ID(此时ID一定有效) 
+                local userID = v.uid -- 玩家ID(此时ID一定有效)
 
                 -- 超时两轮自动站起
                 if v.tostandup then
                     self:stand(v, v.uid, pb.enum_id("network.cmd.PBTexasStandType", "PBTexasStandType_PlayerStand"))
-                elseif user.notOperateTimes and user.notOperateTimes >= 2 and v.uid ~= 0 then   -- 玩家操作超时 
+                elseif user.notOperateTimes and user.notOperateTimes >= 2 and v.uid ~= 0 then -- 玩家操作超时
                     user.notOperateTimes = 0
                     log.debug("idx(%s,%s) uid=%s notOperateTimes=%s", self.id, self.mid, v.uid, user.notOperateTimes)
                     self:stand(v, v.uid, pb.enum_id("network.cmd.PBTexasStandType", "PBTexasStandType_PlayerStand"))
                 end
 
-                if user.toleave then  -- 如果玩家将要离开 
+                if user.toleave then -- 如果玩家将要离开
                     log.info(
                         "idx(%s,%s) onCheck user(%s,%s) betting timeout %s",
                         self.id,
@@ -130,12 +130,12 @@ local function onCheck(self)
                         tostring(user.toleave)
                     )
                     self:userLeave(userID, user.linkid) -- 玩家离开
-                elseif v.uid then  -- 如果该位置还有玩家坐下
+                elseif v.uid then -- 如果该位置还有玩家坐下
                     if v.chips >= (self.conf and self.conf.ante * 80 + self.conf.fee or 0) then
                         v:reset() -- 重置座位
                         v.isplaying = true
-                    else  -- 金额不足
-                        if v.uid ~= 0 then  -- 如果不是系统
+                    else -- 金额不足
+                        if v.uid ~= 0 then -- 如果不是系统
                             log.info(
                                 "idx(%s,%s) onCheck user(%s,%s) not enough chips, chips=%s ",
                                 self.id,
@@ -146,7 +146,7 @@ local function onCheck(self)
                             )
                             self:userLeave(userID, user.linkid)
                             v:reset() -- 重置座位
-                        elseif self.bankerUID == v.uid then  -- 如果是系统，且是系统坐庄
+                        elseif self.bankerUID == v.uid then -- 如果是系统，且是系统坐庄
                             v.chips = self.conf and self.conf.ante * 80 + self.conf.fee or 0
                         end
                     end
@@ -242,7 +242,6 @@ function Room:init()
     self.stateBeginTime = global.ctsec() -- 当前状态开始时刻
     log.info("idx(%s,%s) self.state = %s", self.id, self.mid, tostring(self.state)) -- 更新了桌子状态
 
-
     self.seats = {} -- 所有座位
     for sid = 1, self.conf.maxuser do -- 根据每桌玩家最大数目创建座位
         local s = Seat:new(self, sid) -- 新建座位
@@ -292,7 +291,7 @@ function Room:userStand(uid, linkid, rev)
     local user = self.users[uid]
 
     if self:canStandup(uid) then
-        if uid == self.bankerUID then  -- 如果该站起的玩家是庄家
+        if uid == self.bankerUID then -- 如果该站起的玩家是庄家
             self:updateBanker(true) -- 强制换庄
         else
             self:stand(seat, uid, pb.enum_id("network.cmd.PBTexasStandType", "PBTexasStandType_PlayerStand"))
@@ -428,21 +427,7 @@ function Room:count()
     return c, r
 end
 
--- 检测让机器人离开
-function Room:checkLeave()
-    local c = self:count() -- 获取该桌坐下的玩家总数及坐下的机器人总数
-    if c > 2 then -- 如果超过2个玩家
-        for k, v in ipairs(self.seats) do
-            local user = self.users[v.uid]
-            if user then
-                if Utils:isRobot(user.api) then -- 如果是机器人
-                    self:userLeave(v.uid, user.linkid) -- 让机器人离开
-                    break
-                end
-            end
-        end
-    end
-end
+
 
 --玩家准备离开房间
 function Room:logout(uid)
@@ -483,7 +468,14 @@ end
 
 -- 指定玩家离开房间
 function Room:userLeave(uid, linkid, client)
-    log.info("Room:userLeave(...) idx(%s,%s) uid=%s, linkid=%s, client=%s", self.id, self.mid, tostring(uid), tostring(linkid), tostring(client))
+    log.info(
+        "Room:userLeave(...) idx(%s,%s) uid=%s, linkid=%s, client=%s",
+        self.id,
+        self.mid,
+        tostring(uid),
+        tostring(linkid),
+        tostring(client)
+    )
 
     local function handleFailed() -- 处理离开失败的情况
         local resp =
@@ -1018,7 +1010,7 @@ end
 
 function Room:sendAllSeatsInfoToMe(uid, linkid, tableinfo)
     tableinfo.seatInfos = {}
-    for i = 1, #self.seats do  -- 遍历所有座位
+    for i = 1, #self.seats do -- 遍历所有座位
         local seat = self.seats[i] -- 第i个座位
         if seat.uid then
             local seatinfo = fillSeatInfo(seat, self)
@@ -1159,7 +1151,8 @@ function Room:stand(seat, uid, stype)
                 {
                     ip = user.ip or "",
                     api = user.api or "",
-                    roomtype = self.conf.roomtype
+                    roomtype = self.conf.roomtype,
+                    playchips = 20 * (self.conf and self.conf.fee or 0) -- 2021-12-24
                 }
             )
 
@@ -1406,7 +1399,7 @@ function Room:updateBanker(force)
             sid = bankerSid,
             count = self.conf.max_bank_successive_cnt
         }
-        self.bankerUID = newBankerUID  -- 新庄家UID
+        self.bankerUID = newBankerUID -- 新庄家UID
 
         pb.encode(
             "network.cmd.PBPokDengUpdateBanker",
@@ -1425,7 +1418,7 @@ function Room:updateBanker(force)
             "stand updatebanker oldBankerUID=%s, self.bankerUID=%s, sid=%s,count=%s",
             oldBankerUID,
             self.bankerUID,
-            bankerSid,   -- 新庄家原来的位置
+            bankerSid, -- 新庄家原来的位置
             updateBankerSit.count
         )
 
@@ -1443,7 +1436,7 @@ function Room:updateBanker(force)
             end
         )
 
-        if bankerSid > 0 then  -- 新庄家原来的位置
+        if bankerSid > 0 then -- 新庄家原来的位置
             pb.encode(
                 "network.cmd.PBTexasPlayerStand",
                 {sid = bankerSid, type = pb.enum_id("network.cmd.PBTexasStandType", "PBTexasStandType_PlayerStand")},
@@ -1456,7 +1449,7 @@ function Room:updateBanker(force)
                     )
                 end
             )
-            self.seats[bankerSid]:stand(newBankerUID)  -- 新庄家从原来位置站起 
+            self.seats[bankerSid]:stand(newBankerUID) -- 新庄家从原来位置站起
             log.info("dqw player stand  uid=%s, sid=%s", newBankerUID, bankerSid)
         -- self:stand(
         --     self.seats[bankerSid],
@@ -1473,7 +1466,7 @@ function Room:updateBanker(force)
 
         if self.bankerUID ~= 0 then -- 如果非系统坐庄
             log.info("dqw idx(%s,%s) self.bankerUID=%s", self.id, self.mid, self.bankerUID)
-            self:sit(self.seats[self.conf.maxuser], self.bankerUID, self:getUserMoney(self.bankerUID), true)  -- 新庄家坐下 
+            self:sit(self.seats[self.conf.maxuser], self.bankerUID, self:getUserMoney(self.bankerUID), true) -- 新庄家坐下
         else -- 如果是系统坐庄
             log.info("dqw idx(%s,%s) system on bank", self.id, self.mid)
             self.users[0] = self.users[0] or {money = 2000000}
@@ -1528,6 +1521,16 @@ function Room:start()
                     v.chips = v.chips - self.conf.fee -- 扣除该座位玩家的服务费
                     v.room_delta = v.room_delta - self.conf.fee -- 总的纯收益
                     v.profit = v.profit - self.conf.fee
+
+                    self.sdata.users[v.uid].extrainfo =
+                        cjson.encode(
+                        {
+                            ip = user and user.ip or "",
+                            api = user and user.api or "",
+                            roomtype = self.conf.roomtype,
+                            playchips = 20 * (self.conf and self.conf.fee or 0) -- 2021-12-24
+                        }
+                    )
                 end
             end
         end
@@ -2344,6 +2347,12 @@ function Room:finish()
                 potInfo.handcards = g.copy(seat.handcards)
                 table.insert(FinalGame.potInfos, potInfo)
 
+                --盈利扣水
+                if seat.profit > 0 and (self.conf.rebate or 0) > 0 then
+                    local rebate = math.floor(seat.profit * self.conf.rebate)
+                    seat.profit = seat.profit - rebate
+                    user.playerinfo.balance = user.playerinfo.balance - rebate
+                end
                 -- 统计信息
                 self.sdata.users = self.sdata.users or {}
                 self.sdata.users[seat.uid] = self.sdata.users[seat.uid] or {}

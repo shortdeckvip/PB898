@@ -27,7 +27,8 @@ local TimerID = {
     TimerID_PotAnimation = {11, 1000},
     TimerID_Buyin = {12, 1000},
     TimerID_Ready = {13, 5},
-    TimerID_Expense = {14, 5000}
+    TimerID_Expense = {14, 5000},
+    TimerID_Result = {17, 1200}
 }
 
 local EnumUserState = {
@@ -110,7 +111,7 @@ end
 
 local function onHandCardsAnimation(self)
     local function doRun()
-        log.info(
+        log.debug(
             "idx(%s,%s,%s) onHandCardsAnimation:%s",
             self.id,
             self.mid,
@@ -129,7 +130,7 @@ end
 
 local function onPotAnimation(self)
     local function doRun()
-        log.info("idx(%s,%s,%s) onPotAnimation", self.id, self.mid, tostring(self.logid), tostring(self.logid))
+        log.debug("idx(%s,%s,%s) onPotAnimation", self.id, self.mid, tostring(self.logid), tostring(self.logid))
         timer.cancel(self.timer, TimerID.TimerID_PotAnimation[1])
         self:finish()
     end
@@ -171,7 +172,7 @@ local function onCheck(self)
         end
 
         -- check all users issuses
-        local hasuser, robotid = false
+        local hasuser, robotid = false, nil
         for uid, user in pairs(self.users) do
             -- clear logout users after 10 mins
             if user.state == EnumUserState.Logout and global.ctsec() >= user.logoutts + MYCONF.logout_to_kickout_secs then
@@ -269,7 +270,7 @@ local function onCheck(self)
             local _, r = self:count()
             if hasuser and r == 0 and not self.notify_createrobot then
                 self.notify_createrobot = true
-                log.info("idx(%s,%s,%s) notify create robot", self.id, self.mid, tostring(self.logid))
+                log.debug("idx(%s,%s,%s) notify create robot", self.id, self.mid, tostring(self.logid))
                 Utils:notifyCreateRobot(self.conf.roomtype, self.mid, self.id, 1)
             end
             if r == 1 then
@@ -294,8 +295,6 @@ local function onFinish(self)
     local function doRun()
         log.info("idx(%s,%s,%s) onFinish", self.id, self.mid, tostring(self.logid))
         timer.cancel(self.timer, TimerID.TimerID_OnFinish[1])
-
-        --self:checkLeave()
 
         Utils:broadcastSysChatMsgToAllUsers(self.notify_jackpot_msg)
         self.notify_jackpot_msg = nil
@@ -482,21 +481,6 @@ function Room:count()
     return c, r
 end
 
-function Room:checkLeave()
-    local c = self:count()
-    if c > 2 then
-        for k, v in ipairs(self.seats) do
-            local user = self.users[v.uid]
-            if user then
-                if Utils:isRobot(user.api) then
-                    self:userLeave(v.uid, user.linkid)
-                    break
-                end
-            end
-        end
-    end
-end
-
 function Room:logout(uid)
     local user = self.users[uid]
     if user then
@@ -525,7 +509,7 @@ function Room:userQueryUserInfo(uid, ok, ud)
     local user = self.users[uid]
     if user and user.TimerID_Timeout then
         timer.cancel(user.TimerID_Timeout, TimerID.TimerID_Timeout[1])
-        log.info(
+        log.debug(
             "idx(%s,%s,%s) query userinfo:%s ok:%s",
             self.id,
             self.mid,
@@ -541,7 +525,7 @@ function Room:userMutexCheck(uid, code)
     local user = self.users[uid]
     if user then
         timer.cancel(user.TimerID_MutexTo, TimerID.TimerID_MutexTo[1])
-        log.info(
+        log.debug(
             "idx(%s,%s,%s) mutex check:%s code:%s",
             self.id,
             self.mid,
@@ -550,6 +534,14 @@ function Room:userMutexCheck(uid, code)
             tostring(code)
         )
         coroutine.resume(user.mutex, code > 0)
+    end
+end
+
+function Room:queryUserResult(ok, ud)
+    if self.timer then
+        timer.cancel(self.timer, TimerID.TimerID_Result[1])
+        log.debug("idx(%s,%s) query userresult ok:%s", self.id, self.mid, tostring(ok))
+        coroutine.resume(self.result_co, ok, ud)
     end
 end
 
@@ -722,6 +714,10 @@ end
 
 local function onTimeout(arg)
     arg[2]:userQueryUserInfo(arg[1], false, nil)
+end
+
+local function onResultTimeout(arg)
+    arg[1]:queryUserResult(false, nil)
 end
 
 local function onExpenseTimeout(arg)
@@ -1082,7 +1078,7 @@ function Room:potRake(total_pot_chips)
 end
 
 function Room:userTableInfo(uid, linkid, rev)
-    log.info(
+    log.debug(
         "idx(%s,%s,%s) user table info req uid:%s ante:%s",
         self.id,
         self.mid,
@@ -1126,7 +1122,7 @@ function Room:userTableInfo(uid, linkid, rev)
         self.ready_start_time and TimerID.TimerID_Ready[2] - (global.ctsec() - self.ready_start_time) or
         tableinfo.readyLeftTime
     self:sendAllSeatsInfoToMe(uid, linkid, tableinfo)
-    log.info(
+    log.debug(
         "idx(%s,%s,%s) uid:%s userTableInfo:%s",
         self.id,
         self.mid,
@@ -1255,7 +1251,7 @@ end
 
 function Room:getNextActionPosition(seat)
     local pos = seat and seat.sid or 0
-    log.info(
+    log.debug(
         "idx(%s,%s,%s) getNextActionPosition sid:%s,%s",
         self.id,
         self.mid,
@@ -1301,7 +1297,7 @@ function Room:moveButton()
     if #idxes > 0 then
         self.buttonpos = idxes[rand.rand_between(1, #idxes)]
     end
-    log.info(
+    log.debug(
         "idx(%s,%s,%s) movebutton:%s,%s",
         self.id,
         self.mid,
@@ -1344,16 +1340,15 @@ function Room:stand(seat, uid, stype)
             self.sdata.users[uid].ugameinfo.texas.inctotalwinhands =
                 self.sdata.users[uid].ugameinfo.texas.inctotalwinhands or 0
             self.sdata.users[uid].ugameinfo.texas.leftchips = seat.chips
-            self.sdata.users[uid].extrainfo =
-                cjson.encode(
-                {
-                    ip = user.ip or "",
-                    api = user.api or "",
-                    roomtype = self.conf.roomtype,
-                    roundid = user.roundId,
-                    groupcard = cjson.encode(seat:formatGroupCards())
-                }
-            )
+            if self.sdata.users[uid] and self.sdata.users[uid].extrainfo then
+                local extrainfo = cjson.decode(self.sdata.users[uid].extrainfo)
+                if extrainfo then
+                    extrainfo["groupcard"] = cjson.encode(seat:formatGroupCards())
+                    self.sdata.users[uid].extrainfo = cjson.encode(extrainfo)
+                end
+            end
+
+            self:updatePlayChips()
 
             self.reviewlogitems[seat.uid] =
                 self.reviewlogitems[seat.uid] or
@@ -1552,7 +1547,7 @@ function Room:sendPosInfoToAll(seat, chiptype)
                 )
             end
         )
-        log.info(
+        log.debug(
             "idx(%s,%s,%s) updateseat chiptype:%s seatinfo:%s",
             self.id,
             self.mid,
@@ -1576,7 +1571,7 @@ function Room:sendPosInfoToMe(seat)
             pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_RummyUpdateSeat"),
             pb.encode("network.cmd.PBRummyUpdateSeat", updateseat)
         )
-        log.info("idx(%s,%s,%s) checkcard:%s", self.id, self.mid, tostring(self.logid), cjson.encode(updateseat))
+        log.debug("idx(%s,%s,%s) checkcard:%s", self.id, self.mid, tostring(self.logid), cjson.encode(updateseat))
     end
 end
 
@@ -1616,6 +1611,49 @@ function Room:ready()
     end
 end
 
+function Room:dealStrongCards()
+    log.debug("idx(%s,%s,%s) dealStrongCards", self.id, self.mid, tostring(self.logid))
+    local handcards = {}
+    local robot_handcards = {0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
+    local color = rand.rand_between(0, 3)
+    local count = rand.rand_between(1, 9)
+    for i = count, count + 4 do
+        table.insert(handcards, ((color + 1) << 8) | robot_handcards[i])
+    end
+    -- color = (color + 1) % 4
+    -- count = rand.rand_between(1, 9)
+    -- for i = count, count + 3 do
+    --     table.insert(handcards, ((color + 1) << 8) | robot_handcards[i])
+    -- end
+    return self.poker:removes(handcards)
+end
+
+function Room:dealWeakCards()
+    local robot_handcards = {0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
+    local color = rand.rand_between(0, 3)
+    local count = rand.rand_between(1, 13)
+    local delta = rand.rand_between(2, 3)
+    local c = 0
+    local handcards = {}
+    while #handcards ~= #robot_handcards and c < 10 do
+        for i = 1, 4 do
+            count = rand.rand_between(1, 13)
+            color = (color + 1) % 4
+            for j = count, 13, delta do
+                table.insert(handcards, ((color + 1) << 8) | robot_handcards[j])
+                if #handcards == #robot_handcards then
+                    break
+                end
+            end
+            if #handcards == #robot_handcards then
+                break
+            end
+        end
+        c = c + 1
+    end
+    return self.poker:removes(handcards)
+end
+
 function Room:start()
     self.state = pb.enum_id("network.cmd.PBRummyTableState", "PBRummyTableState_Start")
     self:reset()
@@ -1643,34 +1681,6 @@ function Room:start()
 
     self.poker:start()
 
-    --给机器人两条命
-    self.robot_handcards = nil
-    local _, r = self:count()
-    local pro = rand.rand_between(1, 10000)
-    local robotconf = ROBOTAI_CONF[self.conf.robotid] or {}
-    if r > 0 and pro <= (robotconf.firerate or 0) then
-        log.info(
-            "idx(%s,%s,%s) trigger robotfire pro %s firerate %s",
-            self.id,
-            self.mid,
-            tostring(self.logid),
-            pro,
-            robotconf.firerate or 0
-        )
-        local handcards = {}
-        local robot_handcards = {0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
-        local color = rand.rand_between(1, 4)
-        local count = rand.rand_between(1, 9)
-        for i = count, count + 3 do
-            table.insert(handcards, (color << 8) | robot_handcards[i])
-        end
-        color = (color + 1) % 4
-        count = rand.rand_between(1, 9)
-        for i = count, count + 4 do
-            table.insert(handcards, (color << 8) | robot_handcards[i])
-        end
-        self.robot_handcards = self.poker:removes(handcards)
-    end
     -- GameLog
     --self.boardlog:appendStart(self)
     -- 服务费
@@ -1699,7 +1709,8 @@ function Room:start()
                     ip = user and user.ip or "",
                     api = user and user.api or "",
                     roomtype = self.conf.roomtype,
-                    roundid = user.roundId
+                    roundid = user.roundId,
+                    playchips = 20 * (self.conf.fee or 0) -- 2021-12-24
                 }
             )
             if k == self.buttonpos then
@@ -2288,6 +2299,94 @@ function Room:dealPreChips()
     onStartHandCards(self)
 end
 
+function Room:dealHandCardsCommon(winner, loser)
+    local cfgcardidx = 0
+    if winner and loser then
+        winner.handcards = self:dealStrongCards()
+        loser.handcards = self:dealWeakCards()
+    end
+    for k, seat in ipairs(self.seats) do
+        local user = self.users[seat.uid]
+        if user then
+            if seat.isplaying then
+                cfgcardidx = cfgcardidx + 1
+                if self.config_switch and RUMMYCONF.CONFCARDS.groupcards[cfgcardidx] then
+                    for _, v in ipairs(RUMMYCONF.CONFCARDS.groupcards[cfgcardidx]) do
+                        for _, vv in ipairs(v) do
+                            table.insert(seat.handcards, vv)
+                        end
+                    end
+                    seat.groupcards = g.copy(RUMMYCONF.CONFCARDS.groupcards[cfgcardidx])
+                else
+                    if winner and loser then
+                        if seat == winner then
+                            local leftcards = self.poker:getNCard(13 - #seat.handcards)
+                            for _, v in ipairs(leftcards) do
+                                table.insert(seat.handcards, v)
+                            end
+                        elseif seat == loser then
+                            local leftcards = self.poker:getNCard(13 - #seat.handcards)
+                            for _, v in ipairs(leftcards) do
+                                table.insert(seat.handcards, v)
+                            end
+                        else
+                            seat.handcards = self.poker:getNCard(13)
+                        end
+                    else
+                        local pro = rand.rand_between(1, 10000)
+                        local robotconf = ROBOTAI_CONF[self.conf.robotid] or {}
+                        if Utils:isRobot(user.api) and pro <= (robotconf.firerate or 0) then
+                            seat.handcards = self:dealStrongCards()
+                            local leftcards = self.poker:getNCard(13 - #seat.handcards)
+                            for _, v in ipairs(leftcards) do
+                                table.insert(seat.handcards, v)
+                            end
+                        else
+                            seat.handcards = self.poker:getNCard(13)
+                        end
+                    end
+                end
+                seat.groupcards = self.poker:group(seat.handcards)
+            end
+        end
+    end
+    for k, seat in ipairs(self.seats) do
+        local user = self.users[seat.uid]
+        if user then
+            local cards = {
+                cards = {{sid = k, handcards = g.copy(seat.handcards), group = g.copy(seat.groupcards)}}
+            }
+            net.send(
+                user.linkid,
+                seat.uid,
+                pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_RummyDealCard"),
+                pb.encode("network.cmd.PBRummyDealCard", cards)
+            )
+
+            log.info(
+                "idx(%s,%s,%s) sid:%s,uid:%s deal handcard:%s,%s",
+                self.id,
+                self.mid,
+                tostring(self.logid),
+                k,
+                seat.uid,
+                cjson.encode(cards),
+                cjson.encode(seat.groupcards)
+            )
+
+            self.sdata.users = self.sdata.users or {}
+            self.sdata.users[seat.uid] = self.sdata.users[seat.uid] or {}
+            self.sdata.users[seat.uid].sid = k
+            self.sdata.users[seat.uid].username = user.username
+            if k == self.buttonpos then
+                self.sdata.users[seat.uid].role = pb.enum_id("network.inter.USER_ROLE_TYPE", "USER_ROLE_BANKER")
+            else
+                self.sdata.users[seat.uid].role = pb.enum_id("network.inter.USER_ROLE_TYPE", "USER_ROLE_TEXAS_PLAYER")
+            end
+        end
+    end
+end
 --deal handcards
 function Room:dealHandCards()
     pb.encode(
@@ -2302,69 +2401,110 @@ function Room:dealHandCards()
             )
         end
     )
-    local cfgcardidx = 0
-    for k, seat in ipairs(self.seats) do
+    local robotlist = {}
+    local hasplayer = false
+    for _, seat in ipairs(self.seats) do
         local user = self.users[seat.uid]
-        if user then
-            if seat.isplaying then
-                cfgcardidx = cfgcardidx + 1
-                if self.config_switch and RUMMYCONF.CONFCARDS.groupcards[cfgcardidx] then
-                    for _, v in ipairs(RUMMYCONF.CONFCARDS.groupcards[cfgcardidx]) do
-                        for _, vv in ipairs(v) do
-                            table.insert(seat.handcards, vv)
-                        end
-                    end
-                    seat.groupcards = g.copy(RUMMYCONF.CONFCARDS.groupcards[cfgcardidx])
-                else
-                    if Utils:isRobot(user.api) and self.robot_handcards then
-                        seat.handcards = g.copy(self.robot_handcards)
-                        local leftcards = self.poker:getNCard(13 - #seat.handcards)
-                        for _, v in ipairs(leftcards) do
-                            table.insert(seat.handcards, v)
-                        end
-                    else
-                        seat.handcards = self.poker:getNCard(13)
-                    end
-                    seat.groupcards = self.poker:group(seat.handcards)
-                end
-
-                local cards = {
-                    cards = {{sid = k, handcards = g.copy(seat.handcards), group = g.copy(seat.groupcards)}}
-                }
-                net.send(
-                    user.linkid,
-                    seat.uid,
-                    pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-                    pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_RummyDealCard"),
-                    pb.encode("network.cmd.PBRummyDealCard", cards)
-                )
-
-                log.info(
-                    "idx(%s,%s,%s) sid:%s,uid:%s deal handcard:%s,%s",
-                    self.id,
-                    self.mid,
-                    tostring(self.logid),
-                    k,
-                    seat.uid,
-                    cjson.encode(cards),
-                    cjson.encode(seat.groupcards)
-                )
-
-                self.sdata.users = self.sdata.users or {}
-                self.sdata.users[seat.uid] = self.sdata.users[seat.uid] or {}
-                self.sdata.users[seat.uid].sid = k
-                self.sdata.users[seat.uid].username = user.username
-                if k == self.buttonpos then
-                    self.sdata.users[seat.uid].role = pb.enum_id("network.inter.USER_ROLE_TYPE", "USER_ROLE_BANKER")
-                else
-                    self.sdata.users[seat.uid].role =
-                        pb.enum_id("network.inter.USER_ROLE_TYPE", "USER_ROLE_TEXAS_PLAYER")
-                end
+        if user and seat.isplaying then
+            if Utils:isRobot(user.api) then
+                table.insert(robotlist, seat.uid)
+            else
+                hasplayer = true
             end
         end
     end
-    -- GameLog
-    --self.boardlog:appendPreFlop(self)
+    local cfgcardidx = 0
+    if self.conf.single_profit_switch and hasplayer then
+        self.result_co =
+            coroutine.create(
+            function()
+                local msg = {ctx = 0, matchid = self.mid, roomid = self.id, data = {}, ispvp = true}
+                for _, seat in ipairs(self.seats) do
+                    local v = self.users[seat.uid]
+                    if v and not Utils:isRobot(v.api) and seat.isplaying then
+                        table.insert(msg.data, {uid = seat.uid, chips = 20 * (self.conf.fee or 0), betchips = 0})
+                    end
+                end
+                log.info("idx(%s,%s) start result request %s", self.id, self.mid, cjson.encode(msg))
+                Utils:queryProfitResult(msg)
+                local ok, res = coroutine.yield() -- 等待查询结果
+                local winlist, loselist = {}, {}
+                if ok and res then
+                    for _, v in ipairs(res) do
+                        local uid, r, maxwin = v.uid, v.res, v.maxwin
+                        if self.sdata.users[uid] and self.sdata.users[uid].extrainfo then
+                            local extrainfo = cjson.decode(self.sdata.users[uid].extrainfo)
+                            if extrainfo then
+                                extrainfo["maxwin"] = r * maxwin
+                                self.sdata.users[uid].extrainfo = cjson.encode(extrainfo)
+                            end
+                        end
+                        log.info("idx(%s,%s) finish result %s,%s", self.id, self.mid, uid, r)
+                        if r > 0 then
+                            table.insert(winlist, uid)
+                        elseif r < 0 then
+                            table.insert(loselist, uid)
+                        end
+                    end
+                end
+                log.info(
+                    "idx(%s,%s) ok %s winlist loselist robotlist %s,%s,%s",
+                    self.id,
+                    self.mid,
+                    tostring(ok),
+                    cjson.encode(winlist),
+                    cjson.encode(loselist),
+                    cjson.encode(robotlist)
+                )
+                local winner, loser
+                if #winlist > 0 then
+                    winner = self:getSeatByUid(winlist[rand.rand_between(1, #winlist)])
+                end
+                if #loselist > 0 then
+                    loser = self:getSeatByUid(loselist[rand.rand_between(1, #loselist)])
+                end
+                if not winner and loser and #robotlist > 0 then
+                    winner = self:getSeatByUid(table.remove(robotlist))
+                elseif winner and not loser and #robotlist > 0 then
+                    loser = self:getSeatByUid(table.remove(robotlist))
+                end
+                self:dealHandCardsCommon(winner, loser)
+            end
+        )
+        timer.tick(self.timer, TimerID.TimerID_Result[1], TimerID.TimerID_Result[2], onResultTimeout, {self})
+        coroutine.resume(self.result_co)
+    else
+        for _, seat in ipairs(self.seats) do
+            local user = self.users[seat.uid]
+            if user then
+                if seat.isplaying then
+                    cfgcardidx = cfgcardidx + 1
+                    if self.config_switch and RUMMYCONF.CONFCARDS.groupcards[cfgcardidx] then
+                        for _, v in ipairs(RUMMYCONF.CONFCARDS.groupcards[cfgcardidx]) do
+                            for _, vv in ipairs(v) do
+                                table.insert(seat.handcards, vv)
+                            end
+                        end
+                        seat.groupcards = g.copy(RUMMYCONF.CONFCARDS.groupcards[cfgcardidx])
+                    else
+                        local pro = rand.rand_between(1, 10000)
+                        local robotconf = ROBOTAI_CONF[self.conf.robotid] or {}
+                        if Utils:isRobot(user.api) and pro <= (robotconf.firerate or 0) then
+                            seat.handcards = self:dealStrongCards()
+                            local leftcards = self.poker:getNCard(13 - #seat.handcards)
+                            for _, v in ipairs(leftcards) do
+                                table.insert(seat.handcards, v)
+                            end
+                        else
+                            seat.handcards = self.poker:getNCard(13)
+                        end
+                    end
+                    seat.groupcards = self.poker:group(seat.handcards)
+                end
+            end
+        end
+        self:dealHandCardsCommon()
+    end
 
     timer.tick(
         self.timer,
@@ -2494,6 +2634,36 @@ function Room:finish()
             (global.ctsec() - self.endtime)
     }
 
+    --离开的赢家
+    if self.winner_seat and self.winner_seat.uid and not self.users[self.winner_seats.uid] then
+        self.sdata.users = self.sdata.users or {}
+        self.sdata.users[self.winner_seats.uid] = self.sdata.users[self.winner_seats.uid] or {}
+        self.sdata.users[self.winner_seats.uid].totalpureprofit =
+            self.sdata.users[self.winner_seats.uid].totalpureprofit or self.winner_seats.room_delta
+        self.sdata.users[self.winner_seats.uid].ugameinfo = self.sdata.users[self.winner_seats.uid].ugameinfo or {}
+        self.sdata.users[self.winner_seats.uid].ugameinfo.texas =
+            self.sdata.users[self.winner_seats.uid].ugameinfo.texas or {}
+        self.sdata.users[self.winner_seats.uid].ugameinfo.texas.leftchips = self.winner_seats.chips
+        self.sdata.users[self.winner_seats.uid].totalfee = self.conf.fee + potrate
+
+        self.reviewlogitems[self.winner_seats.uid] = self.reviewlogitems[self.winner_seats.uid] or {}
+        self.reviewlogitems[self.winner_seats.uid].win = pot
+
+        table.insert(
+            FinalGame.potInfos,
+            {
+                sid = self.winner_seats.sid,
+                winMoney = pot,
+                seatMoney = self.winner_seats.chips,
+                score = 0,
+                winType = 0,
+                nickname = self.reviewlogitems[self.winner_seats.uid].username,
+                nickurl = self.reviewlogitems[self.winner_seats.uid].nickurl,
+                group = self.reviewlogitems[self.winner_seats.uid].handcards
+            }
+        )
+    end
+
     local reviewlog = {
         buttonsid = self.buttonpos,
         ante = self.conf.ante,
@@ -2504,6 +2674,12 @@ function Room:finish()
     for k, v in ipairs(self.seats) do
         local user = self.users[v.uid]
         if user and v.isplaying then
+            --盈利扣水
+            if v.room_delta > 0 and (self.conf.rebate or 0) > 0 then
+                local rebate = math.floor(v.room_delta * self.conf.rebate)
+                v.room_delta = v.room_delta - rebate
+                v.chips = v.chips - rebate
+            end
             self.sdata.users = self.sdata.users or {}
             self.sdata.users[v.uid] = self.sdata.users[v.uid] or {}
             self.sdata.users[v.uid].totalpureprofit = v.room_delta
@@ -2531,17 +2707,14 @@ function Room:finish()
             self.sdata.users[v.uid].ugameinfo.texas.inctotalhands = 1
             self.sdata.users[v.uid].ugameinfo.texas.inctotalwinhands = (v.room_delta > 0) and 1 or 0
             self.sdata.users[v.uid].ugameinfo.texas.leftchips = v.chips
-            self.sdata.users[v.uid].extrainfo =
-                cjson.encode(
-                {
-                    ip = user.ip or "",
-                    api = user.api or "",
-                    roomtype = self.conf.roomtype,
-                    groupcard = cjson.encode(v:formatGroupCards()),
-                    roundid = user.roundId,
-                    totalbets = totalbets
-                }
-            )
+            if self.sdata.users[v.uid] and self.sdata.users[v.uid].extrainfo then
+                local extrainfo = cjson.decode(self.sdata.users[v.uid].extrainfo)
+                if extrainfo then
+                    extrainfo["groupcard"] = cjson.encode(v:formatGroupCards())
+                    extrainfo["totalbets"] = totalbets
+                    self.sdata.users[v.uid].extrainfo = cjson.encode(extrainfo)
+                end
+            end
 
             table.insert(
                 FinalGame.potInfos,
@@ -2577,6 +2750,7 @@ function Room:finish()
             self.reviewlogitems[v.uid] = nil
         end
     end
+
     for _, v in pairs(self.reviewlogitems) do
         table.insert(reviewlog.items, v)
         table.insert(
@@ -2594,6 +2768,19 @@ function Room:finish()
             }
         )
     end
+    self:updatePlayChips()
+    --设置剩余筹码是否有效
+    for k, v in pairs(self.sdata.users) do
+        local user = self.users[k]
+        if v.extrainfo and not user then
+            local extrainfo = cjson.decode(v.extrainfo)
+            if extrainfo and not Utils:isRobot(extrainfo.api) then
+                extrainfo["leftchips"] = true
+                self.sdata.users[k].extrainfo = cjson.encode(extrainfo)
+            end
+        end
+    end
+
     self.reviewlogs:push(reviewlog)
     self.reviewlogitems = {}
     self.winner_seats = nil
@@ -2648,7 +2835,7 @@ function Room:check()
             cnt = cnt + 1
         end
     end
-    log.info("idx(%s,%s,%s) room:check playing size=%s", self.id, self.mid, tostring(self.logid), cnt)
+    log.debug("idx(%s,%s,%s) room:check playing size=%s", self.id, self.mid, tostring(self.logid), cnt)
     if cnt <= 1 then
         timer.cancel(self.timer, TimerID.TimerID_Betting[1])
         timer.cancel(self.timer, TimerID.TimerID_OnFinish[1])
@@ -2885,7 +3072,7 @@ function Room:userBuyin(uid, linkid, rev, system)
 end
 
 function Room:userChat(uid, linkid, rev)
-    log.info("idx(%s,%s,%s) userChat:%s", self.id, self.mid, tostring(self.logid), uid)
+    log.debug("idx(%s,%s,%s) userChat:%s", self.id, self.mid, tostring(self.logid), uid)
     if not rev.type or not rev.content then
         return
     end
@@ -2918,7 +3105,7 @@ function Room:userChat(uid, linkid, rev)
 end
 
 function Room:userTool(uid, linkid, rev)
-    log.info(
+    log.debug(
         "idx(%s,%s,%s) userTool:%s,%s,%s",
         self.id,
         self.mid,
@@ -3059,13 +3246,13 @@ function Room:userTool(uid, linkid, rev)
 end
 
 function Room:userReview(uid, linkid, rev)
-    log.info("idx(%s,%s,%s) userReview uid %s", self.id, self.mid, tostring(self.logid), uid)
+    log.debug("idx(%s,%s,%s) userReview uid %s", self.id, self.mid, tostring(self.logid), uid)
 
     local t = {
         reviews = {}
     }
     local function resp()
-        log.info("idx(%s,%s,%s) PBRummyReviewResp %s", self.id, self.mid, tostring(self.logid), cjson.encode(t))
+        log.debug("idx(%s,%s,%s) PBRummyReviewResp %s", self.id, self.mid, tostring(self.logid), cjson.encode(t))
         net.send(
             linkid,
             uid,
@@ -3090,7 +3277,7 @@ function Room:userReview(uid, linkid, rev)
 end
 
 function Room:userPreOperate(uid, linkid, rev)
-    log.info(
+    log.debug(
         "idx(%s,%s,%s) userRreOperate uid %s preop %s",
         self.id,
         self.mid,
@@ -3134,7 +3321,7 @@ function Room:userPreOperate(uid, linkid, rev)
 end
 
 function Room:userAddTime(uid, linkid, rev)
-    log.info("idx(%s,%s,%s) req addtime uid:%s", self.id, self.mid, tostring(self.logid), uid)
+    log.debug("idx(%s,%s,%s) req addtime uid:%s", self.id, self.mid, tostring(self.logid), uid)
 
     local function handleFailed(code)
         net.send(
@@ -3398,10 +3585,10 @@ function Room:getUserIp(uid)
 end
 
 function Room:tools(jdata)
-    log.info("(%s,%s) tools>>>>>>>> %s", self.id, self.mid, jdata)
+    log.debug("(%s,%s) tools>>>>>>>> %s", self.id, self.mid, jdata)
     local data = cjson.decode(jdata)
     if data then
-        log.info("(%s,%s) handle tools %s", self.id, self.mid, cjson.encode(data))
+        log.debug("(%s,%s) handle tools %s", self.id, self.mid, cjson.encode(data))
         if data["api"] == "kickout" then
             self.isStopping = true
         end
@@ -3441,6 +3628,36 @@ function Room:userWalletResp(rev)
             end
         else
             Utils:transferRepay(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_RETURNCHIPS"), v)
+        end
+    end
+end
+
+-- 更新所有玩家打码量   playchips
+function Room:updatePlayChips()
+    local feerate = self.conf.feerate or 0
+    for k, seat in ipairs(self.seats) do
+        if seat and seat.uid and seat.isplaying then
+            local user = self.users[seat.uid]
+            if user and not Utils:isRobot(user.api) then
+                local extrainfo = cjson.decode(self.sdata.users[user.uid].extrainfo)
+                if feerate > 0 then
+                    -- 服务费*20 + (开启底池抽水 ? 0.5*abs(盈利值) : 0)
+                    --local win = -seat.score * self.conf.ante
+                    extrainfo["playchips"] = 20 * (self.conf.fee or 0) + 0.5 * math.abs(seat.room_delta)
+                    log.debug(
+                        "score=%s, ante=%s, fee=%s, room_delta=%s",
+                        seat.score,
+                        self.conf.ante,
+                        self.conf.fee,
+                        seat.room_delta
+                    )
+                else
+                    log.debug("score=%s, ante=%s, fee=%s", seat.score, self.conf.ante, self.conf.fee)
+                    extrainfo["playchips"] = 20 * (self.conf.fee or 0)
+                end
+                self.sdata.users[user.uid].extrainfo = cjson.encode(extrainfo)
+                log.debug("extrainfo=%s", self.sdata.users[user.uid].extrainfo)
+            end
         end
     end
 end

@@ -8,5 +8,5 @@
 	fee: 收取盈利服务费率
 -->
 <XGAME>
-	<table id="1" roomtype="2" carrybound = "2000,1000000" chips="100,500,1000,2000,5000,10000,50000,100000,1000000" betarea="2-1-100000000;2-1-100000000;16-1-10000000" profitrate_threshold_lowerlimit="0.07" profitrate_threshold_minilimit="0.05" fee="0.1" min_onbank_moneycnt="500000" min_outbank_moneycnt="200000"/>
+	<table id="1" roomtype="2" carrybound = "2000,1000000" chips="100,500,1000,5000,10000,50000,100000,500000,1000000,5000000" betarea="2-1-25000000;2-1-25000000;16-1-10000000" profitrate_threshold_lowerlimit="0.07" profitrate_threshold_minilimit="0.05" fee="0.1" min_onbank_moneycnt="500000" min_outbank_moneycnt="200000"/>
 </XGAME>

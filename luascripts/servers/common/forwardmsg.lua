@@ -91,6 +91,15 @@ local function parseUser2GameAtomUpdateForward(srvid, linkid, msg)
     end
 end
 
+local function parseUser2GameProfitResultReqResp(srvid, linkid, msg)
+    local rev = pb.decode("network.inter.Game2UserProfitResultReqResp", msg)
+
+    local r = MatchMgr:getRoomById(rev.matchid, rev.roomid)
+    if r and type(r.queryUserResult) == "function" then
+        r:queryUserResult(true, rev.data)
+    end
+end
+
 Forward_Register(
     pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Money"),
     pb.enum_id("network.inter.Game2MoneySubCmd", "Game2MoneySubCmd_QueryUserInfo"),
@@ -135,4 +144,11 @@ Forward_Register(
     pb.enum_id("network.inter.Game2UserInfoSubCmd", "Game2UserInfoSubCmd_UserAtomUpdate"),
     "",
     parseUser2GameAtomUpdateForward
+)
+
+Forward_Register(
+    pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2UserInfo"),
+    pb.enum_id("network.inter.Game2UserInfoSubCmd", "Game2UserInfoSubCmd_ProfitResultReqResp"),
+    "",
+    parseUser2GameProfitResultReqResp
 )

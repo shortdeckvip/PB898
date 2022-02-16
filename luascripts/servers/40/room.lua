@@ -25,7 +25,8 @@ local TimerID = {
     TimerID_PotAnimation = {11, 1000},
     TimerID_Buyin = {12, 1000},
     TimerID_Ready = {13, 1},
-    TimerID_Expense = {14, 5000}
+    TimerID_Expense = {14, 5000},
+    TimerID_CheckRobot = {15, 5000}
 }
 
 local EnumUserState = {
@@ -272,12 +273,46 @@ local function onCheck(self)
     g.call(doRun)
 end
 
+local function onCheckRobot(self)
+    local function doRun()
+        local all, r = self:count()
+        -- 检测机器人离开
+        if r > 1 and all == self.conf.maxuser then  -- 如果座位已坐满且不止一个机器人
+            for k, v in ipairs(self.seats) do
+                local user = self.users[v.uid]
+                if user and Utils:isRobot(user.api) then
+                    user.state = EnumUserState.Logout
+                    user.logoutts = global.ctsec() - 60
+                    break
+                end
+            end
+        end
+        if r == 0 then
+            log.debug(
+                "idx(%s,%s,%s) notify create robot,all=%s,maxuser=%s",
+                self.id,
+                self.mid,
+                tostring(self.logid),
+                all,
+                self.conf.maxuser
+            )
+            if all < self.conf.maxuser - 1 then
+                Utils:notifyCreateRobot(
+                    self.conf.roomtype,
+                    self.mid,
+                    self.id,
+                    rand.rand_between(1, self.conf.maxuser - 1 - all)
+                )
+            end
+        end
+    end
+    g.call(doRun)
+end
+
 local function onFinish(self)
     local function doRun()
         log.info("idx(%s,%s) onFinish", self.id, self.mid)
         timer.cancel(self.timer, TimerID.TimerID_OnFinish[1])
-
-        self:checkLeave()
 
         Utils:broadcastSysChatMsgToAllUsers(self.notify_jackpot_msg)
         self.notify_jackpot_msg = nil
@@ -478,20 +513,6 @@ function Room:count()
     return c, r
 end
 
-function Room:checkLeave()
-    local c = self:count()
-    if c > 2 then
-        for k, v in ipairs(self.seats) do
-            local user = self.users[v.uid]
-            if user then
-                if Utils:isRobot(user.api) then
-                    self:userLeave(v.uid, user.linkid, 0, true)
-                    break
-                end
-            end
-        end
-    end
-end
 
 function Room:logout(uid)
     local user = self.users[uid]
@@ -1464,6 +1485,9 @@ end
 local function onBettingTimer(self)
     local function doRun()
         local current_betting_seat = self.seats[self.current_betting_pos]
+        if not current_betting_seat then
+            return
+        end
         log.info(
             "idx(%s,%s) onBettingTimer over time bettingpos:%s uid:%s,%s",
             self.id,
@@ -2250,6 +2274,12 @@ function Room:finish()
                 v.last_chips,
                 win
             )
+            --盈利扣水
+            if win > 0 and (self.conf.rebate or 0) > 0 then
+                local rebate = math.floor(win * self.conf.rebate)
+                win = win - rebate
+                v.chips = v.chips - rebate
+            end
             self.sdata.users = self.sdata.users or {}
             self.sdata.users[v.uid] = self.sdata.users[v.uid] or {}
             self.sdata.users[v.uid].totalpureprofit = self.sdata.users[v.uid].totalpureprofit or win
@@ -2267,7 +2297,8 @@ function Room:finish()
                     roomtype = self.conf.roomtype,
                     roundid = user.roundId,
                     totalbets = 0,
-                    groupcard = g.copy(potscore[v.sid])
+                    groupcard = g.copy(potscore[v.sid]),
+                    playchips = 20 * (self.conf and self.conf.fee or 0) -- 2021-12-24
                 }
             )
 
@@ -2341,6 +2372,7 @@ function Room:check()
         timer.cancel(self.timer, TimerID.TimerID_HandCardsAnimation[1])
         timer.tick(self.timer, TimerID.TimerID_Check[1], TimerID.TimerID_Check[2], onCheck, self)
     end
+    timer.tick(self.timer, TimerID.TimerID_CheckRobot[1], TimerID.TimerID_CheckRobot[2], onCheckRobot, self) -- 启动检测定时器
 end
 
 function Room:userSit(uid, linkid, rev)
@@ -2501,7 +2533,7 @@ function Room:userBuyin(uid, linkid, rev, system)
                 seat.uid,
                 pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
                 pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_NotifyGameCoinUpdate"),
-                pb.encode("network.cmd.PBNotifyGameCoinUpdate_N", {val = self:getuserMoney(uid)})
+                pb.encode("network.cmd.PBNotifyGameCoinUpdate_N", {val = self:getUserMoney(uid)})
             )
             log.info(
                 "idx(%s,%s) uid %s userBuyin result buyinmoney %s seatchips %s money %s coin %s",

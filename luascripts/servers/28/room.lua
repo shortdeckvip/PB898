@@ -2018,7 +2018,8 @@ function Room:start()
                     ip = user and user.ip or "",
                     api = user and user.api or "",
                     roomtype = self.conf.roomtype,
-                    roundid = user.roundId
+                    roundid = user.roundId,
+                    playchips = 20 * (self.conf.fee or 0) -- 2021-12-24
                 }
             )
             if k == self.sbpos then
@@ -3592,6 +3593,12 @@ function Room:finish()
             )
 
             local win = v.chips - v.last_chips --赢利
+            --盈利扣水
+            if win > 0 and (self.conf.rebate or 0) > 0 then
+                local rebate = math.floor(win * self.conf.rebate)
+                win = win - rebate
+                v.chips = v.chips - rebate
+            end
             -- 统计
             self.sdata.users = self.sdata.users or {}
             self.sdata.users[v.uid] = self.sdata.users[v.uid] or {}

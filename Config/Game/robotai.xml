@@ -68,5 +68,6 @@
     <ai gameid="32" matchid="1" type="2" min-carry="200" max-carry="10000" carry-multiple="1" bet-pro="10000" bet-types-cnt="1:3000 2:4000 3:3000" bet-types-pro="1:4800 2:4800 3:400" chips-pro="100:2000 500:2000 1000:2000 5000:1500 10000:1500 50000:500 100000:300 500000:200" robots-cnt="2-8:8-20:8 9-18:10-30:10 19-1:15-40:15" leave-money="100000-1500000" leave-time="30-90" bet-time="7000-20000" bet-cnt="1-2"/>
     <!--AB-->
     <ai gameid="35" matchid="1" type="2" min-carry="200" max-carry="10000" carry-multiple="1" bet-pro="10000" bet-types-cnt="1:3000 2:4000 3:3000" bet-types-pro="1:5000 2:5000" chips-pro="100:2000 500:2000 1000:2000 5000:1500 10000:1500 50000:500 100000:300 500000:200" robots-cnt="2-8:8-20:8 9-18:10-30:10 19-1:15-40:15" leave-money="100000-1500000" leave-time="30-90" bet-time="6000-18000" bet-cnt="1-2"/>
-
+    <!--TPBet-->
+    <ai gameid="42" matchid="1" type="2" min-carry="200" max-carry="10000" carry-multiple="1" bet-pro="10000" bet-types-cnt="1:3000 2:4000 3:3000" bet-types-pro="1:4000 2:4000 3:100 4:900 5:400 6:400 7:100 8:100" chips-pro="100:1000 500:1000 1000:2500 5000:2500 10000:2000 50000:500 100000:300 500000:200" robots-cnt="2-8:10-25:10 9-18:15-40:15 19-1:20-50:20" leave-money="100000-1500000" leave-time="30-90" bet-time="5000-17000" bet-cnt="1-3"/>
 </ROBOT>

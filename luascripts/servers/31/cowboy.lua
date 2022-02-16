@@ -180,7 +180,7 @@ function Cowboy:getWinTypes(cardsA, cardsB, cardsPub)
     assert(cardsA and type(cardsA) == "table" and #cardsA == 2)
     assert(cardsB and type(cardsB) == "table" and #cardsB == 2)
     assert(cardsPub and type(cardsPub) == "table" and #cardsPub == 5)
-    local wintypes = {}
+    local wintypes = {} -- 存放所有赢的区域
     local winpokertype = -1
     local besthand = {}
     --胜平负

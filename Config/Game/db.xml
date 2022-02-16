@@ -10,6 +10,7 @@
 		<ns name="accounts_898.utexasdstatis" sign="AccountsUserTexasDayStatis"/>
 		<ns name="accounts_898.userkvdata" sign="AccountsUserKVData"/>
 		<ns name="accounts_898.robot" sign="AccountsRobot"/>
+		<ns name="accounts_898.protcontrol" sign="AccountsUserProtControl"/>
 		<ns name="global_898.jackpot" sign="GlobalJackPot"/>
 		<ns name="global_898.rank_most_win_today" sign="GlobalRankMostWinToday"/>
 		<ns name="global_898.rank_history_mostwin_today" sign="GlobalRankHistoryMostWinToday"/>
@@ -32,5 +33,6 @@
 		<ns name="LIST|BET|" sign="RedisKeyListBet"/>
 		<ns name="ROBOT|CURUID" sign="ReditKeyRobotCurUid"/>
 		<ns name="ROBOT|PLAYER" sign="ReditKeyRobotPlayer"/>
+		<ns name="GAMESTAT" sign="RedisKeyGameStat"/>
 	</redis>
 </DB>

@@ -552,6 +552,9 @@ function Room:init()
 
     self.tableStartCount = 0
     self.logid = self.statistic:genLogId()
+    self.hasFind = false
+    self.maxWinnerUID = 0
+    self.maxLoserUID = 0
 end
 
 function Room:reload()
@@ -1231,6 +1234,7 @@ function Room:reset()
     self.potrates = {}
     self.seats_totalbets = {}
     self.invalid_pot_sid = 0
+    self.hasFind = false
 end
 
 function Room:getInvalidPot()
@@ -2037,7 +2041,8 @@ function Room:start()
                     ip = user and user.ip or "",
                     api = user and user.api or "",
                     roomtype = self.conf.roomtype,
-                    roundid = user.roundId
+                    roundid = user.roundId,
+                    playchips = 20 * (self.conf.fee or 0) -- 2021-12-24
                 }
             )
             if k == self.sbpos then
@@ -3618,6 +3623,12 @@ function Room:finish()
             )
 
             local win = v.chips - v.last_chips -- 赢利
+            --盈利扣水
+            if win > 0 and (self.conf.rebate or 0) > 0 then
+                local rebate = math.floor(win * self.conf.rebate)
+                win = win - rebate
+                v.chips = v.chips - rebate
+            end
             -- 统计
             self.sdata.users = self.sdata.users or {}
             self.sdata.users[v.uid] = self.sdata.users[v.uid] or {}
@@ -3630,22 +3641,59 @@ function Room:finish()
             self.sdata.users[v.uid].ugameinfo.texas.bestcards = v.besthand
             self.sdata.users[v.uid].ugameinfo.texas.bestcardstype = v.handtype
             self.sdata.users[v.uid].ugameinfo.texas.leftchips = v.chips
-
             -- 输家防倒币行为
-            if self.sdata.users[v.uid].extrainfo then
+            if self:checkWinnerAndLoserAreAllReal() and v.uid == self.maxLoserUID and self.sdata.users[v.uid].extrainfo then
                 local extrainfo = cjson.decode(self.sdata.users[v.uid].extrainfo)
-                if
-                    not Utils:isRobot(user.api) and extrainfo and
-                        laststate == pb.enum_id("network.cmd.PBTexasTableState", "PBTexasTableState_PreFlop") and
-                        self.sdata.users[v.uid].totalpureprofit < 0 and
-                        math.abs(self.sdata.users[v.uid].totalpureprofit) >= 20 * self.conf.sb * 2 and
-                        v.chiptype == pb.enum_id("network.cmd.PBTexasChipinType", "PBTexasChipinType_FOLD") and
-                        not user.is_bet_timeout and
-                        (v.odds or 1) < 0.25
-                 then
-                    extrainfo["cheat"] = true
-                    self.sdata.users[v.uid].extrainfo = cjson.encode(extrainfo)
-                    self.has_cheat = true
+                if not Utils:isRobot(user.api) and extrainfo then -- 如果不是机器人
+                    local ischeat = false
+                    if
+                        laststate == pb.enum_id("network.cmd.PBTexasTableState", "PBTexasTableState_PreFlop") and -- 翻牌前
+                            self.sdata.users[v.uid].totalpureprofit < 0 and -- 该玩家输
+                            math.abs(self.sdata.users[v.uid].totalpureprofit) >= 20 * self.conf.sb * 2 and
+                            v.lastchiptype == pb.enum_id("network.cmd.PBTexasChipinType", "PBTexasChipinType_FOLD") and -- 主动弃牌
+                            not user.is_bet_timeout and
+                            (v.odds or 1) < 0.25
+                     then -- 需要跟注筹码 < 1/4底池
+                        log.debug("cheat first condition,uid=%s", v.uid)
+                        ischeat = true
+                    elseif
+                        laststate >= pb.enum_id("network.cmd.PBTexasTableState", "PBTexasTableState_Flop") and -- 翻牌后
+                            self.sdata.users[v.uid].totalpureprofit < 0 and -- 该玩家输
+                            math.abs(self.sdata.users[v.uid].totalpureprofit) >= 20 * self.conf.sb * 2 and -- 玩家输币 >= Poker 20 bb/6+ 50ante
+                            v.lastchiptype == pb.enum_id("network.cmd.PBTexasChipinType", "PBTexasChipinType_FOLD") and -- 主动弃牌
+                            -- v.handtype >= pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_ONEPAIR") and -- 牌型在对子或对子以上主动弃牌
+                            self:checkCheat2(v) and
+                            (v.odds or 1) < 0.25
+                     then -- 需要跟注筹码 < 1/4底池
+                        log.debug("cheat second condition,uid=%s", v.uid)
+                        ischeat = true
+                    elseif
+                        laststate == pb.enum_id("network.cmd.PBTexasTableState", "PBTexasTableState_River") and -- 河牌
+                            self.sdata.users[v.uid].totalpureprofit < 0 and -- 该玩家输
+                            math.abs(self.sdata.users[v.uid].totalpureprofit) >= 20 * self.conf.sb * 2 and -- 输最多玩家输币 >= Poker 20 bb/6+ 50ante
+                            v.lastchiptype >= pb.enum_id("network.cmd.PBTexasChipinType", "PBTexasChipinType_CALL") and
+                            self:checkCheat(v)
+                     then -- 是否满足规则3条件
+                        log.debug("cheat third condition,uid=%s", v.uid)
+                        ischeat = true
+                    end
+                    if ischeat then
+                        extrainfo["cheat"] = true
+                        self.sdata.users[v.uid].extrainfo = cjson.encode(extrainfo)
+                        self.has_cheat = true
+                        log.debug("cheat losser uid=%s", v.uid)
+                    else
+                        log.debug(
+                            "not cheat uid=%s,laststate=%s,totalpureprofit=%s,sb=%s,lastchiptype=%s,handtype=%s,odds=%s",
+                            v.uid,
+                            laststate,
+                            tostring(self.sdata.users[v.uid].totalpureprofit),
+                            tostring(self.conf.sb),
+                            tostring(v.lastchiptype),
+                            tostring(v.handtype),
+                            tostring(v.odds)
+                        )
+                    end
                 end
             end
         end
@@ -3655,11 +3703,12 @@ function Room:finish()
     for _, v in ipairs(self.seats) do
         local user = self.users[v.uid]
         if user and v.isplaying then
-            if self.has_cheat and self.sdata.users[v.uid].totalpureprofit > 0 and self.sdata.users[v.uid].extrainfo then -- 盈利玩家
+            if self.has_cheat and self.maxWinerUID == v.uid and self.sdata.users[v.uid].totalpureprofit > 0 and self.sdata.users[v.uid].extrainfo then -- 盈利玩家
                 local extrainfo = cjson.decode(self.sdata.users[v.uid].extrainfo)
                 if not Utils:isRobot(user.api) and extrainfo then
-                    extrainfo["cheat"] = true
+                    extrainfo["cheat"] = true -- 作弊
                     self.sdata.users[v.uid].extrainfo = cjson.encode(extrainfo)
+                    log.debug("cheat winner uid=%s", v.uid)
                 end
             end
         end
@@ -5137,4 +5186,229 @@ function Room:userWalletResp(rev)
             Utils:transferRepay(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_RETURNCHIPS"), v)
         end
     end
+end
+
+-- 检测是否满足cheat条件
+function Room:checkCheat(seat)
+    -- seat.handcards -- 该玩家手牌(2张)
+    -- self.boardcards  -- 公共牌(5张)
+
+    -- (1)公共牌无公对无3条，输最多玩家牌力小于K high ||
+    -- (2)公共牌有1个公对，输最多玩家牌力小于两对，手牌无K及K以上(无K无A) ||
+    -- (3)公共牌有2个公对或者3条，输最多玩家牌力小于葫芦，手牌无K及K以上(无K无A)
+    log.debug(
+        "idx(%s,%s)checkCheat(),uid=%s handcard:%s,boardcards=%s",
+        self.id,
+        self.mid,
+        seat.uid,
+        string.format("0x%x,0x%x", seat.handcards[1], seat.handcards[2]),
+        string.format(
+            "0x%x,0x%x,0x%x,0x%x,0x%x",
+            self.boardcards[1],
+            self.boardcards[2],
+            self.boardcards[3],
+            self.boardcards[4],
+            self.boardcards[5]
+        )
+    )
+
+    local handHasLargerK = false -- 手中是否有K及K以上的牌
+    for i = 1, #seat.handcards do
+        if (0xFF & seat.handcards[i]) >= 0xD then
+            handHasLargerK = true
+            break
+        end
+    end
+    local publicHasLargerK = false -- 公共牌中是否有K及K以上的牌
+    for i = 1, #self.boardcards do
+        if (0xFF & self.boardcards[i]) >= 0xD then
+            publicHasLargerK = true
+            break
+        end
+    end
+
+    local publicPairNum = 0 -- 公共牌对子数
+    local publicThreeNum = 0 -- 三张数
+    local cardsNum = {}
+    for i = 1, #self.boardcards do
+        if not cardsNum[self.boardcards[i] & 0xFF] then
+            cardsNum[self.boardcards[i] & 0xFF] = 1
+        else
+            cardsNum[self.boardcards[i] & 0xFF] = cardsNum[self.boardcards[i] & 0xFF] + 1
+        end
+    end
+
+    for i = 2, 0xE do
+        if cardsNum[i] then
+            if 2 == cardsNum[i] then
+                publicPairNum = publicPairNum + 1
+            elseif 3 == cardsNum[i] then
+                publicThreeNum = publicThreeNum + 1
+            end
+        end
+    end
+
+    if seat.lastchiptype == pb.enum_id("network.cmd.PBTexasChipinType", "PBTexasChipinType_FOLD") then
+        seat.handtype = self:getCardsType(self.boardcards, seat.handcards)
+    end
+
+    -- (1)公共牌无公对无3条，输最多玩家牌力小于K high
+    if
+        seat.handtype < pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_ONEPAIR") and
+            not handHasLargerK and
+            not publicHasLargerK
+     then
+        return true
+    end
+
+    -- (2)公共牌有1个公对，输最多玩家牌力小于两对，手牌无K及K以上(无K无A)
+    if
+        seat.handtype < pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_TWOPAIRS") and
+            not handHasLargerK and
+            (1 == publicPairNum)
+     then
+        return true
+    end
+
+    -- (3)公共牌有2个公对或者3条，输最多玩家牌力小于葫芦，手牌无K及K以上(无K无A)
+    if
+        seat.handtype < pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_FULLHOUSE") and
+            not handHasLargerK and
+            (2 == publicPairNum or 1 == publicThreeNum)
+     then
+        return true
+    end
+    return false
+end
+
+
+-- 判断该局输赢最多的两个玩家是否都是真人
+function Room:checkWinnerAndLoserAreAllReal()
+    if not self.hasFind then   -- 如果还未查找        
+        self.hasFind = true
+        self.maxWinnerLoserAreAllReal = false   -- 最大赢家和输家是否都是真人（默认不全是真人） 
+
+        self.maxWinnerUID = 0   -- 最大的赢家uid
+        self.maxLoserUID = 0    -- 最大输家uid
+        local maxWin = 0
+        local maxLoss = 0
+        for k, v in ipairs(self.seats) do
+            local user = self.users[v.uid]
+            if user and v.isplaying then
+                local totalwin = v.chips - (v.totalbuyin - v.currentbuyin) -- 该玩家总输赢 
+                if totalwin > maxWin then
+                    maxWin = totalwin
+                    self.maxWinnerUID = v.uid
+                elseif totalwin < maxLoss then
+                    maxLoss = totalwin
+                    self.maxLoserUID = v.uid
+                end
+            end -- ~if
+        end -- ~for
+
+        -- 判断最大输家和最大赢家是否都是真人
+        if 0 ~= self.maxWinnerUID and 0 ~= self.maxLoserUID then
+            local user = self.users[self.maxWinnerUID]
+            if user then
+                if not Utils:isRobot(user.api) then
+                    user = self.users[self.maxLoserUID]
+                    if user then
+                        if not Utils:isRobot(user.api) then
+                            self.maxWinnerLoserAreAllReal = true
+                        end
+                    end
+                end
+            end            
+        end
+    end
+
+    return self.maxWinnerLoserAreAllReal  -- 默认都是真人
+end
+
+
+
+-- 检测是否满足cheat的第二个条件
+function Room:checkCheat2(seat)
+    -- 公共牌无公对无3条，输最多玩家牌力大于等于对子
+    -- || 公共牌只有1个公对，输最多玩家牌力大于等于两对
+    -- || 公共牌有2个公对或者3条，输最多玩家牌力大于等于葫芦
+
+    -- seat.handcards -- 该玩家手牌(2张)
+    -- self.boardcards  -- 公共牌(5张)
+
+    local publicPairNum = 0 -- 公共牌对子数
+    local publicThreeNum = 0 -- 三张数
+    local cardsNum = {}
+    for i = 1, #self.boardcards do
+        if not cardsNum[self.boardcards[i] & 0xFF] then
+            cardsNum[self.boardcards[i] & 0xFF] = 1
+        else
+            cardsNum[self.boardcards[i] & 0xFF] = cardsNum[self.boardcards[i] & 0xFF] + 1
+        end
+    end
+
+    for i = 2, 0xE do
+        if cardsNum[i] then
+            if 2 == cardsNum[i] then
+                publicPairNum = publicPairNum + 1
+            elseif 3 == cardsNum[i] then
+                publicThreeNum = publicThreeNum + 1
+            end
+        end
+    end
+
+    if seat.lastchiptype == pb.enum_id("network.cmd.PBTexasChipinType", "PBTexasChipinType_FOLD") then
+        seat.handtype = self:getCardsType(self.boardcards, seat.handcards)
+    end
+
+    if
+        publicPairNum == 0 and publicThreeNum == 0 and
+            seat.handtype >= pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_ONEPAIR")
+     then
+        return true
+    end
+    if
+        publicPairNum == 1 and publicThreeNum == 0 and
+            seat.handtype >= pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_TWOPAIRS")
+     then
+        return true
+    end
+
+    if
+        (publicPairNum == 2 or publicThreeNum == 0) and
+            seat.handtype >= pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_FULLHOUSE")
+     then
+        return true
+    end
+    return false
+end
+
+-- 获取最大牌牌型
+-- 参数 commonCards： 公共牌(3,4,5张)
+-- 参数 handCards: 手牌(2张)
+-- 返回值: 返回牌型 最优牌
+function Room:getCardsType(commonCards, handCards)
+    -- pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_HIGHCARD")
+    if type(commonCards) ~= "table" or type(handCards) ~= "table" then
+        return pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_HIGHCARD")
+    end
+    local commonCardsNum = #commonCards -- 公共牌张数
+    local handCardsNum = #handCards -- 手牌张数
+
+    if commonCardsNum < 3 or commonCardsNum > 5 then
+        return pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_HIGHCARD")
+    end
+    if handCardsNum ~= 2 then
+        return pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_HIGHCARD")
+    end
+
+    -- 计算牌型
+    if commonCardsNum == 5 then
+        texas.initialize(self.pokerhands)
+        texas.sethands(self.pokerhands, handCards[1], handCards[2], commonCards)
+        local besthand = texas.checkhandstype(self.pokerhands) -- 选出最优的牌
+        local handtype = texas.gethandstype(self.pokerhands) -- 获取最优牌牌型
+        return handtype
+    end
+    return pb.enum_id("network.cmd.PBTexasCardWinType", "PBTexasCardWinType_HIGHCARD")
 end

@@ -182,6 +182,16 @@ function Poker:getNCard(n)
     return tmp
 end
 
+-- 获取 N 张牌
+-- @return {} ...
+function Poker:tryGetNCard(n)
+    local tmp = {}
+    for i = 1, n do
+        table.insert(tmp, self.cards[self.currentIdx + i])
+    end
+    return tmp
+end
+
 -- 获取 M 组牌, 每组 N 张牌
 -- @return {}, {} ...
 function Poker:getMNCard(m, n)

@@ -29,7 +29,8 @@ local TimerID = {
     TimerID_FlopTurnRiverAnimation = {13, 1000},
     TimerID_Confirm = {14, 10000},
     TimerID_Next = {15, 1000},
-    TimerID_Expense = {16, 5000}
+    TimerID_Expense = {16, 5000},
+    TimerID_CheckRobot = {17, 5000}
 }
 
 local EnumUserState = {
@@ -256,6 +257,42 @@ local function onCheck(self)
         if self:getPlayingSize() > 1 and global.ctsec() > self.endtime then
             timer.cancel(self.timer, TimerID.TimerID_Check[1])
             self:start()
+        end
+    end
+    g.call(doRun)
+end
+
+local function onCheckRobot(self)
+    local function doRun()
+        local all, r = self:count()
+        -- 检测机器人离开
+        if r > 1 and all == self.conf.maxuser then  -- 如果座位已坐满且不止一个机器人
+            for k, v in ipairs(self.seats) do
+                local user = self.users[v.uid]
+                if user and Utils:isRobot(user.api) then
+                    user.state = EnumUserState.Logout
+                    user.logoutts = global.ctsec() - 60
+                    break
+                end
+            end
+        end
+        if r == 0 then
+            log.debug(
+                "idx(%s,%s,%s) notify create robot,all=%s,maxuser=%s",
+                self.id,
+                self.mid,
+                tostring(self.logid),
+                all,
+                self.conf.maxuser
+            )
+            if all < self.conf.maxuser - 1 then
+                Utils:notifyCreateRobot(
+                    self.conf.roomtype,
+                    self.mid,
+                    self.id,
+                    rand.rand_between(1, self.conf.maxuser - 1 - all)
+                )
+            end
         end
     end
     g.call(doRun)
@@ -537,27 +574,6 @@ function Room:count()
     return c, r
 end
 
-function Room:checkLeave()
-    local c = self:count()
-    if c == self.conf.maxuser then
-        self.max_leave_count = (self.max_leave_count or 0) + 1
-        self.rand_leave_count = self.rand_leave_count or rand.rand_between(0, 3)
-        for k, v in ipairs(self.seats) do
-            local user = self.users[v.uid]
-            if user then
-                if Utils:isRobot(user.api) and self.rand_leave_count <= self.max_leave_count then
-                    self:userLeave(v.uid, user.linkid)
-                    break
-                end
-            end
-        end
-    end
-    c = self:count()
-    if c < self.conf.maxuser then
-        self.max_leave_count = nil
-        self.rand_leave_count = nil
-    end
-end
 
 function Room:logout(uid)
     local user = self.users[uid]
@@ -1593,7 +1609,6 @@ end
 
 function Room:start()
     self.state = pb.enum_id("network.cmd.PBSamGongTableState", "PBSamGongTableState_Start")
-    self:reset()
 
     self.gameId = self:getGameId()
     self.tableStartCount = self.tableStartCount + 1
@@ -1662,7 +1677,8 @@ function Room:start()
                 {
                     ip = user and user.ip or "",
                     api = user and user.api or "",
-                    roomtype = self.conf.roomtype
+                    roomtype = self.conf.roomtype,
+                    playchips = 20 * (self.conf and self.conf.fee or 0) -- 2021-12-24
                 }
             )
             if k == self.buttonpos then
@@ -2141,7 +2157,8 @@ local function dealHandCards(self)
                     {
                         ip = user.ip or "",
                         api = user.api or "",
-                        roomtype = self.conf.roomtype
+                        roomtype = self.conf.roomtype,
+                        playchips = 20 * (self.conf and self.conf.fee or 0) -- 2021-12-24
                     }
                 )
                 if k == self.buttonpos then
@@ -2877,6 +2894,12 @@ function Room:finish()
             )
 
             local win = v.chips - v.last_chips --赢利
+            --盈利扣水
+            if win > 0 and (self.conf.rebate or 0) > 0 then
+                local rebate = math.floor(win * self.conf.rebate)
+                win = win - rebate
+                v.chips = v.chips - rebate
+            end
             -- 统计
             self.sdata.users = self.sdata.users or {}
             self.sdata.users[v.uid] = self.sdata.users[v.uid] or {}
@@ -2975,8 +2998,7 @@ function Room:finish()
                 break
             end
         end
-    end
-    self:checkLeave()
+    end    
 end
 
 function Room:sendUpdatePotsToAll()
@@ -3123,6 +3145,8 @@ function Room:check()
         timer.cancel(self.timer, TimerID.TimerID_FlopTurnRiverAnimation[1])
         timer.tick(self.timer, TimerID.TimerID_Check[1], TimerID.TimerID_Check[2], onCheck, self)
     end
+    timer.tick(self.timer, TimerID.TimerID_CheckRobot[1], TimerID.TimerID_CheckRobot[2], onCheckRobot, self) -- 启动检测定时器
+
 end
 
 function Room:userStand(uid, linkid, rev)

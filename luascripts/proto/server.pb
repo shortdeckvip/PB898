@@ -1,5 +1,5 @@
 
-ËÑ
+§á
 server.protonetwork.inter"M
 SharedSynData
 uids (Ruids
@@ -328,7 +328,7 @@ carrybound"2
 title (	Rtitle
 content (	Rcontent
 deadline (Rdeadline
-acid (Racid"¨
+acid (Racid"∆
 PBUserProfitUpdateData
 uid (Ruid
 deposit (Rdeposit
@@ -349,20 +349,30 @@ leftrebate
 cresttimes (R
 cresttimes 
 troughtimes (Rtroughtimes
-	isrecycle (R	isrecycle"j
+	isrecycle (R	isrecycle
+maxwin (Rmaxwin
+res (Rres
+	leftchips (R	leftchips
+	rebateadd (R	rebateadd
+	rebatesub (R	rebatesub
+ispvp (Rispvp"¢
 PBUserProfitResultData
 uid (Ruid
-chips (Rchips
-res (Rres
-maxwin (Rmaxwin"h
+chips (Rchips
+betchips (Rbetchips
+res (Rres
+maxwin (Rmaxwin
+debugstr (	Rdebugstr"~
 Game2UserUpdateProfitInfo
 ctx (Rctx9
-data (2%.network.inter.PBUserProfitUpdateDataRdata"ù
+data (2%.network.inter.PBUserProfitUpdateDataRdata
+ispvp (Rispvp"≥
 Game2UserProfitResultReqResp
 ctx (Rctx
 matchid (Rmatchid
 roomid (Rroomid9
-data (2%.network.inter.PBUserProfitResultDataRdata"√
+data (2%.network.inter.PBUserProfitResultDataRdata
+ispvp (Rispvp"√
 PBTablePlayersEntry
 gameid (Rgameid
 roomtype (Rroomtype
@@ -565,7 +575,7 @@ $Game2StatisticSubCmd_MoneyChangedReq)
 MONEY_CHANGE_COIN
 MONEY_CHANGE_TOOL
 MONEY_CHANGE_VIP
-MONEY_CHANGE_DIAMOND*¿
+MONEY_CHANGE_DIAMOND*˝
 MONEY_CHANGE_REASON
 MONEY_CHANGE_TRAIN
 MONEY_CHANGE_CHARGE
@@ -601,7 +611,9 @@ $Game2StatisticSubCmd_MoneyChangedReq)
 MONEY_CHANGE_TPBET_BET 
 MONEY_CHANGE_TPBET_SETTLE!
 MONEY_CHANGE_SLOT_BET"
-MONEY_CHANGE_SLOT_SETTLE#*\
+MONEY_CHANGE_SLOT_SETTLE#
+MONEY_CHANGE_WHEEL_SETTLE 
+MONEY_CHANGE_WHEEL_BETÀ*\
 USER_ROLE_TYPE
 USER_ROLE_TEXAS_SB
 USER_ROLE_TEXAS_BB	

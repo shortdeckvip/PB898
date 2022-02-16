@@ -2,6 +2,7 @@
 local g = require("luascripts/common/g")
 local log = require(CLIBS["c_log"])
 local rand = require(CLIBS["c_rand"])
+local global = require(CLIBS["c_global"])
 RoomMgr = RoomMgr or {}
 
 -- 新建一个房间管理器(管理同一级别的房间)
@@ -86,7 +87,7 @@ end
 -- 扩充房间
 function RoomMgr:expandRoom()
     local totalempty = 0
-    for _, v in pairs(self.mgr) do
+    for _, v in pairs(self.mgr) do -- 遍历每个房间
         local conf = MatchMgr:getConfByMid(v.mid) -- 获取某一级别的房间配置
         if conf then
             totalempty = totalempty + conf.maxuser - v:count() -- 累计空余的座位数
@@ -97,6 +98,18 @@ function RoomMgr:expandRoom()
     end
 end
 
+-- 获取空余房间数
+function RoomMgr:getEmptyRoomCount()
+    local emptyRoomNum = 0 -- 空房间数
+    local userNum, robotNum
+    for _, v in pairs(self.mgr) do -- 遍历每个房间
+        userNum, robotNum = v:count()
+        if userNum == robotNum then -- 如果该房间全是机器人
+            emptyRoomNum = emptyRoomNum + 1
+        end
+    end
+    return emptyRoomNum
+end
 -- 收缩房间
 function RoomMgr:shrinkRoom()
     local roomcnt = 0
@@ -108,7 +121,7 @@ function RoomMgr:shrinkRoom()
     end
     for k, v in pairs(self.mgr) do
         roomcnt = roomcnt + 1
-        log.info("idx(%s,%s,%s) usercount %s", v.id, self.mid, tostring(self.logid), g.count(v.users))
+        log.debug("idx(%s,%s,%s) usercount %s", v.id, self.mid, tostring(self.logid), g.count(v.users))
         if g.count(v.users) == 0 and not v:lock() then
             table.insert(emptyroom, k)
         else
@@ -142,16 +155,30 @@ end
 function RoomMgr:getAvaiableRoom(c, uid)
     local cnt = 0
     local r = nil
+    local conf = MatchMgr:getConfByMid(self.mid) -- 获取某一级别的房间配置
     for _, v in pairs(self.mgr) do --遍历所有房间
-        local vc = v:count(uid) -- 该房间中总玩家数
+        local vc, robotCount = v:count(uid) -- 该房间中总玩家数
         if vc < (c or 100) and (not v:lock()) and vc >= cnt then
-            r = v
-            cnt = vc -- 保存该值是为了尽量选择人数最多的房间
-        --return v
+            if conf and conf.single_profit_switch then
+                if vc == robotCount then
+                    r = v
+                    cnt = vc -- 保存该值是为了尽量选择人数最多的房间
+                end
+            else
+                r = v
+                cnt = vc -- 保存该值是为了尽量选择人数最多的房间
+            end
         end
     end
     if not r then
-        return self:createRoom(uid) -- 创建一个新房间
+        if 43 == global.stype() then  -- slot游戏是根据玩家ID作为房间ID
+            r = self:createRoom(uid) -- 创建一个新房间
+        else
+            for i = 1, (conf.mintable or 1) do
+                --r = self:createRoom(uid) -- 创建一个新房间
+                r = self:createRoom() -- 创建一个新房间(房间ID唯一)
+            end
+        end
     end
     return r
 end
@@ -314,11 +341,13 @@ end
 
 -- 创建一个新房间
 function RoomMgr:createRoom(roomid)
+    self.conf = self.conf or {}
+    self.conf.maxtable = self.conf.maxtable or 500
     local id = roomid or Uniqueid:getUniqueid(self.mid, self.conf.maxtable) -- 获取唯一房间ID
     if id == -1 then -- 获取ID失败
         return nil
     end
-    log.info("idx(%s,%s) create room", id, self.mid)
+    log.debug("idx(%s,%s) create room", id, self.mid)
     return self:addRoom(Room:new({id = id, mid = self.mid}))
 end
 
@@ -331,6 +360,28 @@ function RoomMgr:destroyRoom(rid)
         Uniqueid:putUniqueid(self.mid, room.id) -- 释放该房间ID
         room = nil
         self.mgr[rid] = nil
+    end
+end
+
+-- 销毁多余的空闲房间(最多保留2个空闲房间)
+function RoomMgr:makeSure2FreeRoom()
+    local num = 0
+    local userNum, robotNum
+    for _, v in pairs(self.mgr) do
+        userNum, robotNum = v:count()
+        if userNum == robotNum then
+            if num >= 2 and v.state == 5 then
+                self:destroyRoom(v.id)
+            else
+                num = num + 1
+            end
+        end
+    end
+    if num < 2 then
+        self:createRoom()
+        if num == 0 then
+            self:createRoom()
+        end
     end
 end
 

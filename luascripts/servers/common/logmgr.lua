@@ -33,7 +33,7 @@ function LogMgr:push(log)
         table.remove(self.logs, 1) -- 移除最前面的一条记录
     end
     if self.filename then
-        redis.set(5001, self.filename, cjson.encode(self.logs)) -- 保存日志数据到redis中
+        redis.set(5001, self.filename, cjson.encode(self.logs), true) -- 保存日志数据到redis中
     end
 end
 

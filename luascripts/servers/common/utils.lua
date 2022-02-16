@@ -9,7 +9,7 @@ local rand = require(CLIBS["c_rand"])
 
 --overwrite
 Utils = {}
-SLOT_INFO = {total_bets={},total_profit={}}
+SLOT_INFO = {total_bets = {}, total_profit = {}}
 
 local USERINFO_SERVER_TYPE = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_UserInfo") << 16
 local MONEY_SERVER_TYPE = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Money") << 16
@@ -21,6 +21,49 @@ local UNIQUE_TID = 0
 
 function Utils:isRobot(api)
     return tostring(api) == ROBOT_API
+end
+
+-- 判断该房间是否有机器人坐下
+function Utils:hasRobotSit(room)
+    if room.seats then
+        for k, seat in ipairs(room.seats) do
+            if seat and seat.uid and seat.uid > 0 then
+                if room.users and room.users[seat.uid] then
+                    if self:isRobot(room.users[seat.uid].api) then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- 获取某房间空闲座位数
+function Utils:getEmptySeatNum(room)
+    local emptySeatNum = 0
+    if room.seats then
+        for k, seat in ipairs(room.seats) do
+            if seat then
+                if not seat.uid or seat.uid <= 0 then
+                    emptySeatNum = emptySeatNum + 1
+                end
+            end
+        end
+    end
+    return emptySeatNum
+end
+
+-- 判断该房间是否有机器人
+function Utils:hasRobot(room)
+    for k, user in pairs(room.users) do
+        if user and user.api then
+            if self:isRobot(user.api) and user.state == 1 then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 function Utils:sendTipsToMe(linkid, uid, tips, gameid)
@@ -150,6 +193,26 @@ function Utils:forwardToGame(serverid, msg)
         pb.enum_id("network.inter.Game2GameSubCmdID", "Game2GameSubCmdID_ClientForward"),
         pb.encode("network.inter.PBGame2GameClientForward", msg)
     )
+end
+
+function Utils:queryProfitResult(msg)
+    return net.forward(
+        USERINFO_SERVER_TYPE,
+        pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2UserInfo"),
+        pb.enum_id("network.inter.Game2UserInfoSubCmd", "Game2UserInfoSubCmd_ProfitResultReqResp"),
+        pb.encode("network.inter.Game2UserProfitResultReqResp", msg)
+    )
+end
+
+function Utils:updateProfitInfo(msg)
+    if #msg.data > 0 then
+        return net.forward(
+            USERINFO_SERVER_TYPE,
+            pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2UserInfo"),
+            pb.enum_id("network.inter.Game2UserInfoSubCmd", "Game2UserInfoSubCmd_UpdateProfitInfo"),
+            pb.encode("network.inter.Game2UserUpdateProfitInfo", msg)
+        )
+    end
 end
 
 function Utils:walletRpc(uid, api, ip, money, reason, linkid, roomtype, roomid, matchid, extrainfo, op)
@@ -400,59 +463,64 @@ local function unserialize(key)
     return result
 end
 local function serialize(key, data)
-    redis.set(5001, key, data)
+    redis.set(5001, key, data, true)
 end
 
 -- 获取押注信息
--- id: 游戏ID 
+-- id: 游戏ID
 function Utils:unSerializeMiniGame(room, sid, id)
-    sid = sid or global.sid()
-    id = id or room.id
-    if room.total_bets and room.total_profit then
-        local key1 = string.format("%d|%d|PLAYER|BETS", sid, id)
-        room.total_bets = unserialize(key1)
-        local key2 = string.format("%d|%d|PLAYER|PROFIT", sid, id)
-        room.total_profit = unserialize(key2)
-        log.info(
-            "unserialize player %s %s %s %s",
-            key1,
-            cjson.encode(room.total_bets),
-            key2,
-            cjson.encode(room.total_profit)
-        )
-    end
-    if room.robottotal_bets and room.robottotal_profit then
-        local key1 = string.format("%d|%d|BANKER|BETS", sid, id)
-        room.robottotal_bets = unserialize(key1)
-        local key2 = string.format("%d|%d|BANKER|PROFIT", sid, id)
-        room.robottotal_profit = unserialize(key2)
-        log.info(
-            "unserialize banker %s %s %s %s",
-            key1,
-            cjson.encode(room.robottotal_bets),
-            key2,
-            cjson.encode(room.robottotal_profit)
-        )
+    if (room.conf and room:conf() and room:conf().global_profit_switch) or not room.conf then
+        sid = sid or global.sid()
+        id = id or room.id
+        if room.total_bets and room.total_profit then
+            local key1 = string.format("%d|%d|PLAYER|BETS", sid, id)
+            room.total_bets = unserialize(key1)
+            local key2 = string.format("%d|%d|PLAYER|PROFIT", sid, id)
+            room.total_profit = unserialize(key2)
+            log.info(
+                "unserialize player %s %s %s %s",
+                key1,
+                cjson.encode(room.total_bets),
+                key2,
+                cjson.encode(room.total_profit)
+            )
+        end
+        if room.robottotal_bets and room.robottotal_profit then
+            local key1 = string.format("%d|%d|BANKER|BETS", sid, id)
+            room.robottotal_bets = unserialize(key1)
+            local key2 = string.format("%d|%d|BANKER|PROFIT", sid, id)
+            room.robottotal_profit = unserialize(key2)
+            log.info(
+                "unserialize banker %s %s %s %s",
+                key1,
+                cjson.encode(room.robottotal_bets),
+                key2,
+                cjson.encode(room.robottotal_profit)
+            )
+        end
     end
 end
 
 function Utils:serializeMiniGame(room, sid, id)
-    id = id or room.id
-    sid = sid or global.sid()
-    if room.total_bets and room.total_profit then
-        local key = string.format("%d|%d|PLAYER|BETS", sid, id)
-        serialize(key, cjson.encode(room.total_bets))
-        key = string.format("%d|%d|PLAYER|PROFIT", sid, id)
-        serialize(key, cjson.encode(room.total_profit))
-    end
-    if room.robottotal_bets and room.robottotal_profit then
-        local key = string.format("%d|%d|BANKER|BETS", sid, id)
-        serialize(key, cjson.encode(room.robottotal_bets))
-        key = string.format("%d|%d|BANKER|PROFIT", sid, id)
-        serialize(key, cjson.encode(room.robottotal_profit))
+    if (room.conf and room:conf() and room:conf().global_profit_switch) or not room.conf then
+        id = id or room.id
+        sid = sid or global.sid()
+        if room.total_bets and room.total_profit then
+            local key = string.format("%d|%d|PLAYER|BETS", sid, id)
+            serialize(key, cjson.encode(room.total_bets))
+            key = string.format("%d|%d|PLAYER|PROFIT", sid, id)
+            serialize(key, cjson.encode(room.total_profit))
+        end
+        if room.robottotal_bets and room.robottotal_profit then
+            local key = string.format("%d|%d|BANKER|BETS", sid, id)
+            serialize(key, cjson.encode(room.robottotal_bets))
+            key = string.format("%d|%d|BANKER|PROFIT", sid, id)
+            serialize(key, cjson.encode(room.robottotal_profit))
+        end
     end
 end
 
+-- 在线人数
 function Utils:getVirtualPlayerCount(room)
     local needUpdate = false
     local interval = 3

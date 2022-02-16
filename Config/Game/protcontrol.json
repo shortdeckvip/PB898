@@ -1,0 +1,14 @@
+{
+    "min_withdraw": 50000,
+    "withdraw_scale": 0.9,
+    "leftrebate_scale": 0.55,
+    "rebate_balance_scale": 0.5,
+    "max_deposit": 100000,
+    "unlock_withdraw": 60000,
+    "nondeposit_lower": 5000,
+    "nondeposit_rebatetimes": 2,
+    "ondown_max_win": 5000,
+    "ondown_scale": 0.1,
+    "charge_rebateprop": 6000,
+    "rebateadd_max_win_scale": 1.0
+}

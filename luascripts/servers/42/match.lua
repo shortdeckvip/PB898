@@ -6,8 +6,8 @@ local conf = {
         mid = 1,
         name = "初级场",
         roomtype = 2,
-        mintable = 1,
-        maxtable = 4,
+        mintable = 3,
+        maxtable = 400,
         carrybound = {100000, 1500000},
         chips = {100, 500, 1000, 2000, 5000, 10000, 50000, 100000, 1000000}, -- 筹码设置
         betarea = {
@@ -20,8 +20,7 @@ local conf = {
             {10, 1, 1000000}, -- 同花
             {15, 1, 1000000}, -- 顺子
             {100, 1, 1000000}, -- 同花顺
-            {100, 1, 1000000}, -- 三条
-
+            {100, 1, 1000000} -- 三条
         },
         maxlogsavedsize = 1000, -- 历史记录最多留存
         maxlogshowsize = 50, -- 历史记录最多显示
@@ -29,15 +28,12 @@ local conf = {
         profitrate_threshold_lowerlimit = 0.15, -- 盈利阈值触发收紧策略
         profitrate_threshold_upperlimit = 0.3, -- 盈利阈值触发防水策略
         profitrate_threshold_maxdays = 3, -- 盈利阈值触发盈利天数
-        configcards = {
-                -- {{0x202,0x203,0x204},{0x102,0x203,0x304}}
-                --{{0x202,0x203,0x204},{0x20E,0x20E,0x20E}}
-                --{{0x102,0x203,0x304},{0x20D,0x20D,0x20D}}
-                --{{0x102,0x203,0x203},{0x202,0x203,0x204}}
-            },
+        configcards = {},
         min_player_num = 1, -- 随机最少人数
         max_player_num = 5, -- 随机最大人数
-        update_interval = 5 -- 多少局更新一次
+        update_interval = 5, -- 多少局更新一次
+        global_profit_switch = false,
+        single_profit_switch = true -- 单人输赢控制
     }
 }
 

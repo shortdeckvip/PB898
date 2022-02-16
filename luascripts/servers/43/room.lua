@@ -18,7 +18,8 @@ local TimerID = {
     TimerID_Check = {1, 1000}, --id, interval(ms), timestamp(ms)
     TimerID_Timeout = {2, 5 * 1000, 0}, --id, interval(ms), timestamp(ms)
     TimerID_MutexTo = {3, 5 * 1000, 0}, --id, interval(ms), timestamp(ms)
-    TimerID_FreeSpinTimes = {3, 3 * 1000, 0} --id, interval(ms), timestamp(ms)
+    TimerID_FreeSpinTimes = {4, 3 * 1000, 0}, --id, interval(ms), timestamp(ms)
+    TimerID_Result = {5, 3 * 1000, 0} --id, interval(ms), timestamp(ms)
 }
 
 -- 玩家状态
@@ -379,6 +380,18 @@ local function GetWinFreeSpinTimes(cards, slotConf, type)
     return 0
 end
 
+local function onResultTimeout(arg)
+    arg[1]:queryUserResult(false, nil)
+end
+
+function Room:queryUserResult(ok, ud)
+    if self.timer then
+        timer.cancel(self.timer, TimerID.TimerID_Result[1])
+        log.info("idx(%s,%s) query userresult ok:%s", self.id, self.mid, tostring(ok))
+        coroutine.resume(self.result_co, ok, ud)
+    end
+end
+
 -- 获取玩家身上金额
 function Room:getUserMoney(uid)
     local user = self.users[uid]
@@ -391,6 +404,19 @@ function Room:getUserMoney(uid)
         end
     end
     return 0
+end
+
+-- 减少玩家身上金额
+function Room:subUserMoney(uid, subMoney)
+    local user = self.users[uid]
+
+    if self.conf and user then
+        if not self.conf.roomtype or self.conf.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money") then
+            user.money = user.money - subMoney
+        elseif self.conf.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
+            user.coin = user.coin - subMoney
+        end
+    end
 end
 
 --room start
@@ -417,12 +443,13 @@ local function onCheck(self)
             -- clear logout users after 10 mins
             if user.state == EnumUserState.Logout and global.ctsec() >= user.logoutts + MYCONF.logout_to_kickout_secs then
                 log.info(
-                    "idx(%s,%s,%s) onCheck user logouttime=%s, currentTime=%s",
+                    "idx(%s,%s,%s) onCheck user logouttime=%s, currentTime=%s, uid=%s",
                     self.id,
                     self.mid,
                     tostring(self.logid),
                     user.logoutts,
-                    global.ctsec()
+                    global.ctsec(),
+                    uid
                 )
                 self:userLeave(uid, linkid)
             end
@@ -437,13 +464,19 @@ end
 
 -- 房间初始化
 function Room:init()
-    log.info("idx(%s,%s,%s) room init", self.id, self.mid, tostring(self.logid))
     self.conf = MatchMgr:getConfByMid(self.mid) -- 加载配置信息
+    if not self.conf then
+        log.error("idx(%s,%s) self.conf == nil", self.id, self.mid)
+        return
+    end
     self.conf.jpminbet = self.conf.jpminbet or 10000
 
-    log.debug(
-        "init() profitrate_threshold_maxdays=%s,profitrate_threshold_minilimit=%s,profitrate_threshold_lowerlimit=%s",
-        self.conf.profitrate_threshold_maxdays,
+    log.info(
+        "idx(%s,%s,%s) init() profitrate_threshold_maxdays=%s,profitrate_threshold_minilimit=%s,profitrate_threshold_lowerlimit=%s",
+        self.id,
+        self.mid,
+        tostring(self.logid),
+        tostring(self.conf.profitrate_threshold_maxdays),
         tostring(self.conf.profitrate_threshold_minilimit),
         tostring(self.conf.profitrate_threshold_lowerlimit)
     )
@@ -518,7 +551,7 @@ function Room:check()
         return
     end
 
-    log.info("idx(%s,%s,%s) Room:check()", self.id, self.mid, tostring(self.logid))
+    log.debug("idx(%s,%s,%s) Room:check()", self.id, self.mid, tostring(self.logid))
 
     timer.tick(self.timer, TimerID.TimerID_Check[1], TimerID.TimerID_Check[2], onCheck, self) -- 启动定时器定时检测
 end
@@ -608,7 +641,7 @@ function Room:kvdata(data)
                 local user = self.users[self.uid] -- 根据玩家ID获取玩家对象
                 if user then
                     timer.cancel(user.TimerID_FreeSpinTimes, TimerID.TimerID_FreeSpinTimes[1])
-                    log.info(
+                    log.debug(
                         "idx(%s,%s,%s) kvdata(), uid=%s ",
                         self.id,
                         self.mid,
@@ -635,7 +668,7 @@ function Room:count()
     for k, v in pairs(self.users) do
         self.user_count = self.user_count + 1
     end
-    return self.user_count
+    return self.user_count, 0
 end
 
 -- 给正在玩的玩家广播消息
@@ -713,7 +746,7 @@ function Room:userQueryUserInfo(uid, ok, ud)
     local user = self.users[uid]
     if user and user.TimerID_Timeout then
         timer.cancel(user.TimerID_Timeout, TimerID.TimerID_Timeout[1]) -- 关闭超时定时器
-        log.info(
+        log.debug(
             "idx(%s,%s,%s) query userinfo:%s ok:%s",
             self.id,
             self.mid,
@@ -730,7 +763,7 @@ function Room:userFreeSpinTimes(uid, data)
     local user = self.users[uid]
     if user then
         timer.cancel(user.TimerID_FreeSpinTimes, TimerID.TimerID_FreeSpinTimes[1])
-        log.info(
+        log.debug(
             "idx(%s,%s,%s) userFreeSpinTimes(), uid=%s data:%s",
             self.id,
             self.mid,
@@ -747,7 +780,7 @@ function Room:userMutexCheck(uid, code)
     local user = self.users[uid]
     if user then
         timer.cancel(user.TimerID_MutexTo, TimerID.TimerID_MutexTo[1])
-        log.info(
+        log.debug(
             "idx(%s,%s,%s) mutex check:%s code:%s",
             self.id,
             self.mid,
@@ -841,7 +874,6 @@ function Room:userInto(uid, linkid, rev)
             handleFail(pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameFail"))
         else
             if self.users[uid] then
-                log.debug("idx(%s,%s) uid=%s dqw112", self.id, self.mid, uid)
                 self.needGetFreeSpinTimes = false
             -- self.users[uid].state = EnumUserState.Playing
             -- self:userTableInfo(uid, linkid, rev)
@@ -989,8 +1021,8 @@ function Room:userInto(uid, linkid, rev)
                     self.user_cached = false
                     user.state = EnumUserState.Playing
 
-                    log.info(
-                        "idx(%s,%s,%s) into room: uid=%s, linkid-=%s, state=%s,money=%s",
+                    log.debug(
+                        "idx(%s,%s,%s) into room: uid=%s, linkid=%s, state=%s,money=%s",
                         self.id,
                         self.mid,
                         tostring(self.logid),
@@ -1143,7 +1175,6 @@ function Room:userLeave(uid, linkid)
             }
         )
     end
-    log.info("idx(%s,%s,%s) user leave uid=%s", self.id, self.mid, tostring(self.logid), uid)
 
     mutex.request(
         pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Mutex"),
@@ -1207,7 +1238,14 @@ function Room:userLeave(uid, linkid)
         pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_LeaveGameRoomResp"),
         resp
     )
-    log.info("idx(%s,%s,%s) userLeave:%s,%s,%s", self.id, self.mid, tostring(self.logid), uid, user.gamecount or 0, 0)
+    log.info(
+        "idx(%s,%s,%s) userLeave() success: uid=%s, gamecount=%s",
+        self.id,
+        self.mid,
+        tostring(self.logid),
+        uid,
+        user.gamecount or 0
+    )
 
     self.uid = 0
     self.users[uid] = nil
@@ -1251,16 +1289,16 @@ function Room:userTableInfo(uid, linkid, rev)
     end
 
     local user = self.users[uid]
-
-    t.data.playerinfo.uid = user.uid
-    t.data.playerinfo.nickurl = user.nickurl
-    t.data.playerinfo.username = user.username
-    t.data.playerinfo.balance = self:getUserMoney(uid)
-    t.data.playerinfo.viplv = user.viplv
-    t.data.playerinfo.extra = {}
-    t.data.playerinfo.extra.ip = user.ip or ""
-    t.data.playerinfo.extra.api = user.api or ""
-
+    if user then
+        t.data.playerinfo.uid = user.uid
+        t.data.playerinfo.nickurl = user.nickurl
+        t.data.playerinfo.username = user.username
+        t.data.playerinfo.balance = self:getUserMoney(uid)
+        t.data.playerinfo.viplv = user.viplv
+        t.data.playerinfo.extra = {}
+        t.data.playerinfo.extra.ip = user.ip or ""
+        t.data.playerinfo.extra.api = user.api or ""
+    end
     if self.freeSpinTimes == 0 or self.freeSpinTimes == self.totalFreeSpinTimes then
         t.data.lastWin = 0
     end
@@ -1295,13 +1333,14 @@ end
 -- 旋转操作
 function Room:userchipin(uid, type, money, linkid)
     log.info(
-        "idx(%s,%s,%s) userchipin: uid %s, type %s, money %s",
+        "idx(%s,%s,%s) userchipin(): uid=%s, type=%s, money=%s, freeSpinTimes=%s",
         self.id,
         self.mid,
         tostring(self.logid),
         tostring(uid),
         tostring(type),
-        tostring(money)
+        tostring(money),
+        tostring(self.freeSpinTimes)
     )
     self.logid = self.statistic:genLogId(self.starttime) or self.logid
 
@@ -1338,7 +1377,7 @@ function Room:userchipin(uid, type, money, linkid)
             pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotSpinResp"), -- 旋转回应
             resp
         )
-        log.info("idx(%s,%s) user %s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
+        log.debug("idx(%s,%s) user %s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
         return
     end
     local user = self.users[uid] -- 根据玩家ID获取玩家对象
@@ -1354,7 +1393,7 @@ function Room:userchipin(uid, type, money, linkid)
             pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotSpinResp"), -- 旋转回应
             resp
         )
-        log.info("idx(%s,%s) user %s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
+        log.debug("idx(%s,%s) user %s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
         return
     end
 
@@ -1403,7 +1442,9 @@ function Room:userchipin(uid, type, money, linkid)
             tostring(self.total_bets[curday]),
             self.bet
         )
+
         -- 扣除费用
+        self:subUserMoney(self.uid, self.bet)
         if not self.conf.isib then
             Utils:walletRpc(
                 uid,
@@ -1434,186 +1475,81 @@ function Room:userchipin(uid, type, money, linkid)
         --self.cards = GetCards(SLOT_CONF, self.conf.mid)
         self:getFinalCards()
     end
-
-    if self.cfgcard_switch and not self.lastSpinIsFree then
-        if rand.rand_between(0, 100) < 20 then
-            self.cards = {0x06, 0x0a, 0x0B, 0x0c, 0x0c, 0x0c, 0x09, 0x0d, 0x0d, 0x0d, 0x0d, 0x02, 0x02, 0x03, 0x01}
-        end
-    end
-    t.cards = g.copy(self.cards)
-
-    local winMoney = 0 -- 该局赢取到的金额
-    self.lastWin = 0
-
-    -- 计算所有线条赢得的倍数
-    local lineWinTimes = GetAllLineWinTimes(self.cards, SLOT_CONF, self.conf.mid)
-    if lineWinTimes > 0 then
-        winMoney = lineWinTimes * self.bet / SLOT_CONF.lineNum
-        self.lastWin = winMoney
-        local lineCards = {}
-        local winLineTimes = 0
-        for i = 1, SLOT_CONF.lineNum do -- 遍历每一条线
-            lineCards = GetLineData(i, self.cards, SLOT_CONF)
-            local lineTimes, num = GetWinType(lineCards, SLOT_CONF, self.conf.mid)
-            if lineTimes > 0 then
+    local needSendResult = true
+    if self.conf.single_profit_switch then -- 如果是单人控制
+        log.debug("uid=%s, single_profit_switch==true", self.uid)
+        needSendResult = false
+        self.result_co =
+            coroutine.create(
+            function()
+                local msg = {ctx = 0, matchid = self.mid, roomid = self.id, data = {}}
                 table.insert(
-                    t.winLines,
-                    {
-                        lineNo = i,
-                        picNum = num,
-                        winTimes = lineTimes,
-                        winMoney = lineTimes * self.bet / SLOT_CONF.lineNum
-                    }
+                    msg.data,
+                    {uid = self.uid, chips = self:getUserMoney(self.uid) or 0, betchips = self.bet or 0}
                 )
+                log.debug("idx(%s,%s) start result request %s", self.id, self.mid, cjson.encode(msg))
+                Utils:queryProfitResult(msg)
+                local ok, res = coroutine.yield() -- 等待查询结果
+                if ok and res then
+                    for _, v in ipairs(res) do
+                        local uid, r, maxwin = v.uid, v.res, v.maxwin
+                        local user = self.users[uid]
+                        if user then
+                            user.maxwin = r * maxwin
+                        end
+                        log.debug("uid=%s, r=%s, maxwin=%s", tostring(uid), tostring(r), tostring(maxwin))
+                        if uid and uid == self.uid and r then
+                            for i = 0, 10, 1 do
+                                -- 根据牌数据计算真实玩家的输赢值
+                                local realPlayerWin = self:GetRealPlayerWin()
+                                log.debug(
+                                    "idx(%s,%s) redeal  i=%s, realPlayerWin=%s",
+                                    self.id,
+                                    self.mid,
+                                    tostring(i),
+                                    tostring(realPlayerWin)
+                                )
+                                if r > 0 and maxwin then
+                                    if maxwin >= realPlayerWin and realPlayerWin > 0 then
+                                        break
+                                    end
+                                elseif r < 0 then -- 真实玩家输
+                                    if realPlayerWin < 0 then
+                                        break
+                                    end
+                                elseif r == 0 and maxwin then
+                                    if maxwin >= realPlayerWin then
+                                        break
+                                    end
+                                else
+                                    break
+                                end
+                                -- 未满足条件，重新发牌
+                                if self.lastSpinIsFree then
+                                    self.cards = GetCards(SLOT_CONF, 4)
+                                else
+                                    --self:getFinalCards()
+                                    self.cards = GetCards(SLOT_CONF, self.conf.mid)
+                                end
+                            end -- for
+                        end
+                    end
+                    log.info("idx(%s,%s) result success", self.id, self.mid)
+                end
+
+                --
+                t.cards = g.copy(self.cards)
+
+                self:sendResult(self.uid, t, linkid)
             end
-        end
-    end
-
-    -- 计算这一局赢取的免费旋转次数
-    local winFreeSpinTimes = GetWinFreeSpinTimes(self.cards, SLOT_CONF, self.conf.mid)
-    if winFreeSpinTimes > 0 then
-        if self.cfgcard_switch then
-            winFreeSpinTimes = 3 -- 暂时测试用 待修改DQW
-        end
-        self.freeSpinTimes = self.freeSpinTimes + winFreeSpinTimes
-        self.totalFreeSpinTimes = self.totalFreeSpinTimes + winFreeSpinTimes
-    end
-
-    local scatterNum = 0
-    -- 旋转金额大于等于10000才有机会赢得jackpot
-    if self.bet >= self.conf.jpminbet then
-        -- 计算这一局赢得的jackpot
-        scatterNum = GetScatterNum(self.cards)
-    end
-    if t.isFreeSpin then
-        t.balance = self:getUserMoney(self.uid) + winMoney -- 玩家身上金额
-        self.totalFreeSpinWin = self.totalFreeSpinWin + winMoney
-        self.lastWin = self.totalFreeSpinWin
-    else
-        self.lastWin = winMoney
-        t.balance = self:getUserMoney(self.uid) + winMoney - self.bet -- 玩家身上金额
-    end
-    t.winMoney = winMoney
-    t.winFreeSpinTimes = winFreeSpinTimes
-    t.freeSpinTimes = self.freeSpinTimes
-    t.totalFreeSpinWin = self.totalFreeSpinWin
-
-    if winMoney > 0 then
-        self.total_profit[curday] = (self.total_profit[curday] or 0) + winMoney -- 线条中奖总金额
-        Utils:walletRpc(
-            uid,
-            user.api,
-            user.ip,
-            winMoney,
-            pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE"),
-            linkid,
-            self.conf.roomtype,
-            self.id,
-            self.mid,
-            {
-                api = "debit",
-                sid = user.sid or 1,
-                userId = user.userId,
-                transactionId = g.uuid(),
-                roundId = user.roundId,
-                gameId = tostring(global.stype())
-            }
         )
+        timer.tick(self.timer, TimerID.TimerID_Result[1], TimerID.TimerID_Result[2], onResultTimeout, {self})
+        coroutine.resume(self.result_co)
     end
 
-    self.sdata = {roomtype = self.conf.roomtype, tag = self.conf.tag or 1} -- 清空统计数据
-
-    self.sdata.stime = self.starttime -- 开始时刻(秒)
-    self.sdata.etime = self.starttime + 1 -- 结束时刻(秒)
-    self.sdata.totalbet = self.bet -- 该局总下注额
-    self.sdata.totalprofit = winMoney -- 该局总收益
-    self.sdata.jp = {}
-    self.sdata.jp.id = self.conf.jpid
-
-    --JackPot抽水
-    if JACKPOT_CONF[self.conf.jpid] then
-        if t.isFreeSpin then
-            self.sdata.jp.delta_add = self.sdata.jp.delta_add or 0
-        else
-            local delta_add = JACKPOT_CONF[self.conf.jpid].deltabb * self.bet / 100
-            self.sdata.jp.delta_add = (self.sdata.jp.delta_add or 0) + delta_add
-        end
-
-        if scatterNum > 5 then
-            t.winJackPot = true
-            self.jackpot_and_showcard_flags = true
-            self.sdata.jp.delta_sub = JACKPOT_CONF[self.conf.jpid].percent[3]
-            self.sdata.jp.uid = self.uid
-            self.sdata.jp.username = self.users[self.uid] and self.users[self.uid].username or ""
-            self.sdata.winpokertype = 5
-        elseif scatterNum >= 3 then
-            t.winJackPot = true
-            self.jackpot_and_showcard_flags = true
-            self.sdata.jp.delta_sub = JACKPOT_CONF[self.conf.jpid].percent[scatterNum - 2]
-            self.sdata.jp.uid = self.uid
-            self.sdata.jp.username = self.users[self.uid] and self.users[self.uid].username or ""
-            self.sdata.winpokertype = scatterNum
-        end
+    if needSendResult then
+        self:sendResult(self.uid, t, linkid)
     end
-
-    -- 牌局统计数据上报
-    self.sdata.areas = {}
-    self.sdata.cards = {{cards = {}}}
-    self.sdata.cards[1].cards = g.copy(self.cards)
-    self.sdata.wintypes = {1}
-    self.sdata.totalbet = self.bet
-    self.sdata.totalprofit = winMoney
-    self.sdata.extrainfo = cjson.encode({playercount = 1, playerbet = self.bet, playerprofit = winMoney})
-
-    -- 统计
-    self.sdata.users = self.sdata.users or {}
-    self.sdata.users[uid] = self.sdata.users[uid] or {}
-    self.sdata.users[uid].stime = self.starttime
-    self.sdata.users[uid].etime = self.starttime + 1
-    self.sdata.users[uid].username = user.username
-    self.sdata.users[uid].nickurl = user.nickurl
-    self.sdata.users[uid].totalbet = self.bet
-    self.sdata.users[uid].totalprofit = winMoney
-    self.sdata.users[uid].cards = g.copy(self.cards)
-
-    self.sdata.users[uid].extrainfo =
-        cjson.encode(
-        {
-            ip = user and user.ip or "",
-            api = user and user.api or "",
-            roomtype = self.conf.roomtype,
-            roundid = user.roundId,
-            jp = {
-                id = self.sdata.jp.id,
-                delta_sub = self.sdata.jp.delta_sub or 0,
-                delta_add = self.sdata.jp.delta_add or 0
-            }
-        }
-    )
-
-    self.statistic:appendLogs(self.sdata, self.logid)
-
-    t.totalFreeSpinTimes = self.totalFreeSpinTimes -- 总共免费旋转次数
-    if t.isFreeSpin and 0 == self.freeSpinTimes then -- 如果免费旋转次数已用完
-        -- t.totalFreeSpinTimes = self.totalFreeSpinTimes -- 总共免费旋转次数
-        t.totalFreeSpinWin = self:getUserMoney(self.uid) + winMoney - self.beginFreeSpinMoney --免费旋转总盈利
-        if t.totalFreeSpinWin < self.totalFreeSpinWin then
-            t.totalFreeSpinWin = self.totalFreeSpinWin
-        end
-        self.totalFreeSpinTimes = 0
-    end
-
-    local resp = pb.encode("network.cmd.PBSlotSpinResp_S", t)
-    net.send(
-        linkid,
-        uid,
-        pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-        pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotSpinResp"), -- 旋转回应
-        resp
-    )
-    log.info("idx(%s,%s) uid=%s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
-
-    Utils:serializeMiniGame(SLOT_INFO, nil, global.stype())
 
     return true
 end
@@ -1640,7 +1576,7 @@ function Room:userJackPotResp(uid, rev)
         return true
     end
 
-    log.info(
+    log.debug(
         "idx(%s,%s,%s) userJackPotResp:%s,%s,%s,%s",
         self.id,
         self.mid,
@@ -1697,7 +1633,7 @@ end
 
 -- 通知所有玩家当前Jackpot值
 function Room:onJackpotUpdate(jackpot)
-    log.info("(%s,%s,%s)notify client for jackpot change %s", self.id, self.mid, tostring(self.logid), jackpot)
+    log.debug("(%s,%s,%s)notify client for jackpot change %s", self.id, self.mid, tostring(self.logid), jackpot)
     pb.encode(
         "network.cmd.PBGameNotifyJackPot_N",
         {jackpot = jackpot},
@@ -1814,7 +1750,7 @@ function Room:userSlotConfInfo(uid, linkid, rev)
         pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotConfResp"), -- 旋转回应
         resp
     )
-    log.info("idx(%s,%s) uid=%s, PBSlotConfResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
+    log.debug("idx(%s,%s) uid=%s, PBSlotConfResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
 end
 
 -- 获取最终的牌数据
@@ -1826,6 +1762,10 @@ function Room:getFinalCards()
     local profit_rate, usertotalbet_inhand, usertotalprofit_inhand = 0, self.bet, 0
     while true do
         randCards = GetCards(SLOT_CONF, self.conf.mid)
+        if self.conf.single_profit_switch then -- 如果是单人控制
+            self.cards = g.copy(randCards)
+            return self.cards
+        end
         usertotalprofit_inhand = GetAllLineWinTimes(randCards, SLOT_CONF, self.conf.mid) * self.bet / SLOT_CONF.lineNum
         if not minwin or usertotalprofit_inhand < minwin then
             minwin = usertotalprofit_inhand
@@ -1894,7 +1834,6 @@ function Room:getTotalProfitRate(currentBet, currentWin, isResult)
     end
     self.total_profit[sn] = nil
 
-
     -- 玩家当前这一局总盈利
     totalprofit = totalprofit + currentWin
 
@@ -1913,4 +1852,256 @@ function Room:getTotalProfitRate(currentBet, currentWin, isResult)
         )
     end
     return profit_rate
+end
+
+function Room:conf()
+    return MatchMgr:getConfByMid(self.mid) -- 根据房间类型(房间级别)获取该类房间配置
+end
+
+-- 根据牌数据及下注金额获取玩家赢取到的金额
+function Room:GetRealPlayerWin()
+    -- self.cards
+    -- self.bet
+
+    local winMoney = 0
+
+    -- 计算所有线条赢得的倍数
+    local lineWinTimes = GetAllLineWinTimes(self.cards, SLOT_CONF, self.conf.mid)
+
+    if lineWinTimes > 0 then
+        winMoney = lineWinTimes * self.bet / SLOT_CONF.lineNum
+    end
+
+    local scatterNum = 0
+    -- 旋转金额大于等于10000才有机会赢得jackpot
+    if self.bet >= self.conf.jpminbet then
+        -- 计算这一局赢得的jackpot
+        scatterNum = GetScatterNum(self.cards)
+        if scatterNum >= 3 then
+            return 0x7FFFFFFF
+        end
+    end
+    winMoney = winMoney - self.bet
+
+    return winMoney
+end
+
+function Room:sendResult(uid, t, linkid)
+    local user = self.users[uid] -- 根据玩家ID获取玩家对象
+    local curday = global.cdsec() -- 当天标志
+
+    if self.cfgcard_switch and not self.lastSpinIsFree then
+        if rand.rand_between(0, 100) < 20 then
+            self.cards = {0x06, 0x0a, 0x0B, 0x0c, 0x0c, 0x0c, 0x09, 0x0d, 0x0d, 0x0d, 0x0d, 0x02, 0x02, 0x03, 0x01}
+        end
+    end
+    t.cards = g.copy(self.cards)
+
+    local winMoney = 0 -- 该局赢取到的金额
+    self.lastWin = 0
+
+    -- 计算所有线条赢得的倍数
+    local lineWinTimes = GetAllLineWinTimes(self.cards, SLOT_CONF, self.conf.mid)
+    if lineWinTimes > 0 then
+        winMoney = lineWinTimes * self.bet / SLOT_CONF.lineNum
+        self.lastWin = winMoney
+        local lineCards = {}
+        local winLineTimes = 0
+        for i = 1, SLOT_CONF.lineNum do -- 遍历每一条线
+            lineCards = GetLineData(i, self.cards, SLOT_CONF)
+            local lineTimes, num = GetWinType(lineCards, SLOT_CONF, self.conf.mid)
+            if lineTimes > 0 then
+                table.insert(
+                    t.winLines,
+                    {
+                        lineNo = i,
+                        picNum = num,
+                        winTimes = lineTimes,
+                        winMoney = lineTimes * self.bet / SLOT_CONF.lineNum
+                    }
+                )
+            end
+        end
+    end
+
+    --盈利扣水
+    local totalpureprofit = 0
+    if t.isFreeSpin then
+        winMoney = math.floor(winMoney * (1 - (self.conf.rebate or 0)))
+        totalpureprofit = winMoney
+    else
+        local rebate = math.floor((winMoney - self.bet) * (self.conf.rebate or 0))
+        if rebate > 0 then
+            winMoney = winMoney - rebate
+        end
+        totalpureprofit = winMoney - self.bet
+    end
+
+    -- 计算这一局赢取的免费旋转次数
+    local winFreeSpinTimes = GetWinFreeSpinTimes(self.cards, SLOT_CONF, self.conf.mid)
+    if winFreeSpinTimes > 0 then
+        if self.cfgcard_switch then
+            winFreeSpinTimes = 3 -- 暂时测试用 待修改DQW
+        end
+        self.freeSpinTimes = self.freeSpinTimes + winFreeSpinTimes
+        self.totalFreeSpinTimes = self.totalFreeSpinTimes + winFreeSpinTimes
+    end
+
+    local scatterNum = 0
+    -- 旋转金额大于等于10000才有机会赢得jackpot
+    if self.bet >= self.conf.jpminbet then
+        -- 计算这一局赢得的jackpot
+        scatterNum = GetScatterNum(self.cards)
+    end
+    if t.isFreeSpin then
+        t.balance = self:getUserMoney(self.uid) + winMoney -- 玩家身上金额
+        self.totalFreeSpinWin = self.totalFreeSpinWin + winMoney
+        self.lastWin = self.totalFreeSpinWin
+    else
+        self.lastWin = winMoney
+        --t.balance = self:getUserMoney(self.uid) + winMoney - self.bet -- 玩家身上金额
+        t.balance = self:getUserMoney(self.uid) + winMoney -- 玩家身上金额
+    end
+    t.winMoney = winMoney
+    t.winFreeSpinTimes = winFreeSpinTimes
+    t.freeSpinTimes = self.freeSpinTimes
+    t.totalFreeSpinWin = self.totalFreeSpinWin
+
+    if winMoney > 0 then
+        self.total_profit[curday] = (self.total_profit[curday] or 0) + winMoney -- 线条中奖总金额
+        Utils:walletRpc(
+            uid,
+            user.api,
+            user.ip,
+            winMoney,
+            pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE"),
+            linkid,
+            self.conf.roomtype,
+            self.id,
+            self.mid,
+            {
+                api = "debit",
+                sid = user.sid or 1,
+                userId = user.userId,
+                transactionId = g.uuid(),
+                roundId = user.roundId,
+                gameId = tostring(global.stype())
+            }
+        )
+    end
+
+    self.sdata = {roomtype = self.conf.roomtype, tag = self.conf.tag or 1} -- 清空统计数据
+
+    self.sdata.stime = self.starttime -- 开始时刻(秒)
+    self.sdata.etime = self.starttime + 1 -- 结束时刻(秒)
+    self.sdata.totalbet = self.bet -- 该局总下注额
+    self.sdata.totalprofit = winMoney -- 该局总收益
+    self.sdata.jp = {}
+    self.sdata.jp.id = self.conf.jpid
+
+    --JackPot抽水
+    if JACKPOT_CONF[self.conf.jpid] then
+        if t.isFreeSpin then
+            self.sdata.jp.delta_add = self.sdata.jp.delta_add or 0
+        else
+            local delta_add = JACKPOT_CONF[self.conf.jpid].deltabb * self.bet / 100
+            self.sdata.jp.delta_add = (self.sdata.jp.delta_add or 0) + delta_add
+        end
+
+        if scatterNum > 5 then
+            t.winJackPot = true
+            self.jackpot_and_showcard_flags = true
+            self.sdata.jp.delta_sub = JACKPOT_CONF[self.conf.jpid].percent[3]
+            self.sdata.jp.uid = self.uid
+            self.sdata.jp.username = self.users[self.uid] and self.users[self.uid].username or ""
+            self.sdata.winpokertype = 5
+        elseif scatterNum >= 3 then
+            t.winJackPot = true
+            self.jackpot_and_showcard_flags = true
+            self.sdata.jp.delta_sub = JACKPOT_CONF[self.conf.jpid].percent[scatterNum - 2]
+            self.sdata.jp.uid = self.uid
+            self.sdata.jp.username = self.users[self.uid] and self.users[self.uid].username or ""
+            self.sdata.winpokertype = scatterNum
+        end
+    end
+
+    -- 牌局统计数据上报
+    self.sdata.areas = {}
+    self.sdata.cards = {{cards = {}}}
+    self.sdata.cards[1].cards = g.copy(self.cards)
+    self.sdata.wintypes = {1}
+    self.sdata.totalbet = self.bet
+    self.sdata.totalprofit = winMoney
+    self.sdata.extrainfo = cjson.encode({playercount = 1, playerbet = self.bet, playerprofit = winMoney})
+
+    -- 统计
+    self.sdata.users = self.sdata.users or {}
+    self.sdata.users[uid] = self.sdata.users[uid] or {}
+    self.sdata.users[uid].stime = self.starttime
+    self.sdata.users[uid].etime = self.starttime + 1
+    self.sdata.users[uid].username = user.username
+    self.sdata.users[uid].nickurl = user.nickurl
+    self.sdata.users[uid].totalbet = self.bet
+    self.sdata.users[uid].totalprofit = winMoney
+    self.sdata.users[uid].totalpureprofit = totalpureprofit
+
+    self.sdata.users[uid].cards = g.copy(self.cards)
+
+    if t.isFreeSpin then
+        self.sdata.users[uid].extrainfo =
+            cjson.encode(
+            {
+                ip = user and user.ip or "",
+                api = user and user.api or "",
+                roomtype = self.conf.roomtype,
+                roundid = user.roundId,
+                jp = {
+                    id = self.sdata.jp.id,
+                    delta_sub = self.sdata.jp.delta_sub or 0,
+                    delta_add = self.sdata.jp.delta_add or 0
+                },
+                playchips = 0 -- 2022-1-11
+            }
+        )
+    else
+        self.sdata.users[uid].extrainfo =
+            cjson.encode(
+            {
+                ip = user and user.ip or "",
+                api = user and user.api or "",
+                roomtype = self.conf.roomtype,
+                roundid = user.roundId,
+                jp = {
+                    id = self.sdata.jp.id,
+                    delta_sub = self.sdata.jp.delta_sub or 0,
+                    delta_add = self.sdata.jp.delta_add or 0
+                },
+                playchips = self.bet -- 2022-1-11
+            }
+        )
+    end
+
+    self.statistic:appendLogs(self.sdata, self.logid)
+
+    t.totalFreeSpinTimes = self.totalFreeSpinTimes -- 总共免费旋转次数
+    if t.isFreeSpin and 0 == self.freeSpinTimes then -- 如果免费旋转次数已用完
+        -- t.totalFreeSpinTimes = self.totalFreeSpinTimes -- 总共免费旋转次数
+        t.totalFreeSpinWin = self:getUserMoney(self.uid) + winMoney - self.beginFreeSpinMoney --免费旋转总盈利
+        if t.totalFreeSpinWin < self.totalFreeSpinWin then
+            t.totalFreeSpinWin = self.totalFreeSpinWin
+        end
+        self.totalFreeSpinTimes = 0
+    end
+
+    local resp = pb.encode("network.cmd.PBSlotSpinResp_S", t)
+    net.send(
+        linkid,
+        uid,
+        pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+        pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotSpinResp"), -- 旋转回应
+        resp
+    )
+    log.info("idx(%s,%s) uid=%s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
+
+    Utils:serializeMiniGame(SLOT_INFO, nil, global.stype())
 end

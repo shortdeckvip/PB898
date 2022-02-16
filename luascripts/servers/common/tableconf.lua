@@ -140,6 +140,7 @@ local function loadTableListXml()
                             peekpubcardcost = math.floor(0.2 * 2 * XML.intattribute(tb, "sb")), --=XML.intattribute(tb, 'peekpubcardcost'),
                             jpid = XML.intattribute(tb, "jpid") or 0,
                             minipotrate = XML.intattribute(tb, "minipotrate"),
+                            rebate = XML.doubleattribute(tb, "rebate"),
                             feerate = XML.doubleattribute(tb, "feerate"),
                             feehandupper = XML.intattribute(tb, "feehandupper") < 0 and 0xFFFFFFFFFF or
                                 XML.intattribute(tb, "feehandupper"),
@@ -164,6 +165,9 @@ local function loadTableListXml()
                     end
                     if XML.attribute(tb, "bigcardsrate") then
                         TABLECONF[#TABLECONF].bigcardsrate = XML.intattribute(tb, "bigcardsrate") -- 发大牌比例 [1,10000]
+                    end
+                    if XML.attribute(tb, "single_profit_switch") then
+                        TABLECONF[#TABLECONF].single_profit_switch = true
                     end
                     TABLECONF[#TABLECONF].fee = math.floor(TABLECONF[#TABLECONF].fee * TABLECONF[#TABLECONF].sb)
                     TABLECONF[#TABLECONF].maxinto = math.floor(TABLECONF[#TABLECONF].maxinto * TABLECONF[#TABLECONF].sb)
@@ -253,6 +257,14 @@ local function loadMiniGameXml()
             if XML.attribute(tb, "isib") then
                 MINIGAME_CONF[#MINIGAME_CONF].isib = true
             end
+            if XML.attribute(tb, "global_profit_switch") then
+                MINIGAME_CONF[#MINIGAME_CONF].global_profit_switch = true
+                MINIGAME_CONF[#MINIGAME_CONF].single_profit_switch = false
+            end
+            if XML.attribute(tb, "single_profit_switch") then
+                MINIGAME_CONF[#MINIGAME_CONF].single_profit_switch = true
+                MINIGAME_CONF[#MINIGAME_CONF].global_profit_switch = false
+            end
 
             if XML.attribute(tb, "min_player_num") then
                 MINIGAME_CONF[#MINIGAME_CONF].min_player_num = XML.intattribute(tb, "min_player_num")
@@ -262,6 +274,12 @@ local function loadMiniGameXml()
             end
             if XML.attribute(tb, "update_interval") then
                 MINIGAME_CONF[#MINIGAME_CONF].update_interval = XML.intattribute(tb, "update_interval")
+            end
+            if XML.attribute(tb, "mintable") then
+                MINIGAME_CONF[#MINIGAME_CONF].mintable = XML.intattribute(tb, "mintable")
+            end
+            if XML.attribute(tb, "rebate") then
+                MINIGAME_CONF[#MINIGAME_CONF].rebate = XML.doubleattribute(tb, "rebate")
             end
 
             if #carrybound > 0 then
@@ -299,7 +317,7 @@ end
 
 -- 2021-11-4
 -- load slot game config file  slot.xml
-SLOT_CONF = {simple = {}, normal = {}, hard = {}, freeSpin ={}, lineInfo = {}, lineNum = 0, lineCol = 0, lineRow = 0}
+SLOT_CONF = {simple = {}, normal = {}, hard = {}, freeSpin = {}, lineInfo = {}, lineNum = 0, lineCol = 0, lineRow = 0}
 
 local function loadSlotGameXml()
     local doc = XML.createdoc()
@@ -419,7 +437,7 @@ local function loadSlotGameXml()
             local lineData = {id = 0, name = XML.attribute(tb, "name"), col = {}}
             lineData.id = XML.intattribute(tb, "id")
             if lineData.id > SLOT_CONF.lineNum then
-                SLOT_CONF.lineNum = lineData.id   -- 线条总数
+                SLOT_CONF.lineNum = lineData.id -- 线条总数
             end
 
             lineData.col[1] = XML.intattribute(tb, "col1")
@@ -436,7 +454,7 @@ local function loadSlotGameXml()
             end
             lineData.col[4] = XML.intattribute(tb, "col4")
             if 0 == SLOT_CONF.lineCol and 0 == lineData.col[4] then
-                SLOT_CONF.lineCol = 3   -- 线条列数
+                SLOT_CONF.lineCol = 3 -- 线条列数
             end
             if lineData.col[4] > SLOT_CONF.lineRow then
                 SLOT_CONF.lineRow = lineData.col[4]
@@ -484,7 +502,7 @@ local function loadSlotGameXml()
                 SLOT_CONF.lineRow = lineData.col[10]
             end
             if 0 == SLOT_CONF.lineCol then
-                SLOT_CONF.lineCol = 10   -- 最大10列
+                SLOT_CONF.lineCol = 10 -- 最大10列
             end
 
             table.insert(SLOT_CONF.lineInfo, lineData)
@@ -492,8 +510,6 @@ local function loadSlotGameXml()
             tb = XML.nextsibling(tb)
             XML.destroyelement(oldtb)
         end
-
-        
     end
     XML.destroydoc(doc)
 end
