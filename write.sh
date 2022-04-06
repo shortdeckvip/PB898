@@ -5,7 +5,7 @@ function onCtrlC () {
 }
 
 requrl=https://web.wgnice.com/api/dc/bot.php
-keyword="/data"
+keyword="/"
 while true
 do
         used=`df -h | grep -w $keyword | awk '{print $5}' | sed 's/%//g'`
