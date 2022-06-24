@@ -149,7 +149,7 @@ function TeemPatti:getPokerTypebyCards(cards)
 end
 
 --牌型规则：
---三条>同花顺>同花>顺子>对子>高牌。
+--三条>同花顺>顺子>同花>对子>高牌。
 --顺子：AKQ>KQJ>…>32A。
 --散牌：A>K>…>3>2。
 --牌形比较，bankCards与otherCards比较，>0则bankCards比otherCards大，<0则bankCards比otherCards小, =0则相等

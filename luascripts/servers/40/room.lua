@@ -2350,6 +2350,20 @@ function Room:finish()
 
     self.m_winner_sid = 0
     self.sdata.etime = self.endtime
+    
+    for _, seat in ipairs(self.seats) do
+        local user = self.users[seat.uid]
+        if user and seat.isplaying then
+            if not Utils:isRobot(user.api) and self.sdata.users[seat.uid].extrainfo then -- 盈利玩家
+                local extrainfo = cjson.decode(self.sdata.users[seat.uid].extrainfo)
+                if  extrainfo then
+                    extrainfo["totalmoney"] = (self:getUserMoney(seat.uid) or 0) + seat.chips -- 总金额                    
+                    log.debug("self.sdata.users[seat.uid].extrainfo uid=%s,totalmoney=%s", seat.uid, extrainfo["totalmoney"])
+                    self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
+                end
+            end
+        end
+    end
     self.statistic:appendLogs(self.sdata, self.logid)
     timer.tick(self.timer, TimerID.TimerID_OnFinish[1], self.t_msec, onFinish, self)
 end

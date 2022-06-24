@@ -25,6 +25,7 @@ function Seat:init(t, sid)
     self.chips = 0 -- 剩余筹码数
     self.last_chips = 0 -- 剩余筹码数
     self.roundmoney = 0 -- 一轮下注筹码值
+    self.totalChipin = 0
     self.money = 0 -- 一局总消耗筹码数
     self.chipinnum = 0 -- 上一轮下注筹码值
     self.chiptype = pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_NULL") -- 下注操作类型
@@ -35,7 +36,7 @@ function Seat:init(t, sid)
     self.total_time = self.table.bettingtime
     self.addon_time = 0
     self.addon_count = 0
-    self.ischeck = false
+    self.ischeck = false   -- 是否已经看牌
 
     self.autobuy = 0 -- 普通场玩法自动买入
     self.buyinToMoney = 0 -- 普通场玩法自动买入多少钱
@@ -44,7 +45,7 @@ function Seat:init(t, sid)
     self.isbuyining = false --正在买入
     self.autoBuyinToMoney = 0 --普通场勾选了自动买入后手动补币数
 
-    self.preop = 0
+    self.preop = 0    -- 预操作 
 end
 
 function Seat:sit(uid, init_money, autobuy, totalbuyin)
@@ -76,13 +77,15 @@ function Seat:totalBuyin()
     return self.totalbuyin
 end
 
+-- 设置该座位玩家正在买入
 function Seat:setIsBuyining(state)
     self.isbuyining = state
     if self.isbuyining then
-        self.buyin_start_time = global.ctsec()
+        self.buyin_start_time = global.ctsec()  -- 买入开始时刻
     end
 end
 
+-- 判断该座位玩家是否正在买入
 function Seat:getIsBuyining()
     return self.isbuyining
 end
@@ -151,6 +154,8 @@ function Seat:reset()
     self.preop = pb.enum_id("network.cmd.PBTexasPreOPType", "PBTexasPreOPType_None")
 end
 
+-- 参数 type: 操作类型
+-- 参数 money: 本次操作涉及的筹码
 function Seat:chipin(type, money)
     log.debug(
         "Seat:chipin UID:%s pos:%s type:%s lasttype:%s money:%s chips:%s, state:%s, isplaying:%s",
@@ -168,7 +173,8 @@ function Seat:chipin(type, money)
     end
     self.chiptype = type
     self.chipinnum = money
-    self.roundmoney = self.roundmoney + money
+    self.roundmoney = self.roundmoney + money   -- 本局该玩家已下注金额
+    self.totalChipin = self.totalChipin + money
     if type ~= pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_CHECK") then
         self.addon_time = 0
         self.total_time = self.table.bettingtime
@@ -188,12 +194,14 @@ function Seat:chipin(type, money)
     self.table.lastchipinpos = self.sid
 end
 
+-- 操作总时长
 function Seat:getChipinTotalTime()
     return self.total_time
 end
 
+-- 判断是否操作超时
 function Seat:isChipinTimeout()
-    local elapse = global.ctsec() - self.bettingtime
+    local elapse = global.ctsec() - self.bettingtime  -- 已经过时长
     if elapse >= self.table.bettingtime + self.addon_time then
         return true
     else
@@ -201,9 +209,10 @@ function Seat:isChipinTimeout()
     end
 end
 
+-- 本次操作剩余时长(秒)
 function Seat:getChipinLeftTime()
-    local now = global.ctsec()
-    local elapse = now - self.bettingtime
+    local now = global.ctsec()  -- 当前时刻
+    local elapse = now - self.bettingtime  -- 已花费时长
     if elapse > self.table.bettingtime + self.addon_time then
         return 0
     else

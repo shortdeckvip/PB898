@@ -5,7 +5,7 @@ local g = require("luascripts/common/g")
 local COLOR_MASK = 0xFF00 -- 花色掩码
 local VALUE_MASK = 0x00FF -- 牌值掩码
 
----- 默认牌
+-- 默认牌
 local DEFAULT_POKER_TABLE = {
     ---- 2, 3, 4, 5, 6, 7, 8, 9 , 10, J, Q, K, A,
     0x102,
@@ -72,14 +72,10 @@ local DEFAULT_POKER_TABLE = {
 --local DEFAULT_POKER_COUNT = #DEFAULT_POKER_TABLE
 
 local COLOR_STRFORMAT_TABLE = {
-    [1] = "D",
-    --Diamond
-    [2] = "C",
-    --Club
-    [3] = "H",
-    --Heart
-    [4] = "S"
-    --Spade
+    [1] = "D", --Diamond 方块♦
+    [2] = "C", --Club    梅花♣
+    [3] = "H", --Heart   红桃♥
+    [4] = "S" --Spade   黑桃♠
 }
 
 -- 洗牌算法
@@ -91,6 +87,7 @@ local function shuffle(cards)
     end
 end
 
+-- 按牌面值大小比较
 local function defaultCompare(c1, c2)
     return (VALUE_MASK & c1) < (VALUE_MASK & c2)
 end
@@ -125,15 +122,34 @@ function Poker:reset()
     shuffle(self.cards) -- 洗牌
 end
 
+-- 移除指定的一组牌
 -- 参数 r： 要出的这一手牌
 -- 返回值： 返回打出去的牌
 function Poker:removes(r)
-    local ret = {}
-    for _, v in ipairs(r) do
+    local ret = {} -- 成功移除掉的牌
+    for _, v in ipairs(r) do -- 遍历所有待移除的牌
         for kk, vv in ipairs(self.cards) do
             if vv & 0xFFFF == v & 0xFFFF then
                 table.insert(ret, vv)
                 table.remove(self.cards, kk)
+                break
+            end
+        end
+    end
+    return ret
+end
+-- 从剩余牌中移除一组牌
+function Poker:removeFromLeftCards(r)
+    local ret = {} -- 成功移除掉的牌
+    for _, v in ipairs(r) do -- 遍历所有待移除的牌
+        for i=self.currentIdx + 1, #self.cards do
+            if self.cards[i] & 0xFFFF == v & 0xFFFF then  -- 成功找出要获取的牌
+                table.insert(ret, self.cards[i])
+                -- table.remove(self.cards, i)
+                self.currentIdx = self.currentIdx + 1
+                if i ~= self.currentIdx then
+                    self.cards[i], self.cards[self.currentIdx] = self.cards[self.currentIdx], self.cards[i]
+                end
                 break
             end
         end
@@ -150,6 +166,7 @@ function Poker:getLeftCardsCnt()
     return #self.cards - self.currentIdx
 end
 
+-- 发一张牌
 function Poker:pop()
     assert(self.currentIdx < #self.cards)
     self.currentIdx = self.currentIdx + 1
@@ -161,10 +178,10 @@ function Poker:bottomCard()
     if not self.cards then
         return 0
     end
-    return self.cards[#self.cards]
+    return self.cards[#self.cards] -- 最后一张牌
 end
 
--- 检查还有剩余扑克牌
+-- 检查是否剩余扑克牌
 function Poker:isLeft()
     if not self.cards then
         return false
@@ -207,11 +224,13 @@ function Poker:getMNCard(m, n)
     return table.unpack(mcards)
 end
 
+-- 获取牌花色(高8位对应的值)
 function Poker:cardColor(v)
     assert(v and type(v) == "number")
     return (v & self.COLOR_MASK) >> 8
 end
 
+-- 获取牌面值(低8位对应的值)
 function Poker:cardValue(v)
     assert(v and type(v) == "number")
     return v & self.VALUE_MASK
@@ -265,4 +284,34 @@ function Poker:formatCards(cards)
     end
     str = string.sub(str, 1, -2)
     return str
+end
+
+-- 判断某一组牌是否都在剩余牌中
+function Poker:inLeftCards(cards)
+    if not self:isLeft() or not cards then
+        return false
+    end
+    local leftCardsNum = #self.cards - self.currentIdx -- 剩余牌总张数
+    if #cards > leftCardsNum then
+        return false
+    end
+    local leftCards = {}
+    for j = self.currentIdx + 1, #self.cards, 1 do
+        table.insert(leftCards, self.cards[j])
+    end
+
+    for i = 1, #cards, 1 do
+        local hasFind = false
+        for j = 1, #leftCards, 1 do
+            if cards[i] & 0xFFFF == leftCards[j] & 0xFFFF then
+                leftCards[j] = 0   -- 0表示该位置牌无效了
+                hasFind = true
+                break
+            end
+        end
+        if not hasFind then
+            return false
+        end
+    end
+    return true
 end

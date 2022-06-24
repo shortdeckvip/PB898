@@ -200,7 +200,7 @@ function Seat:chipin(type, money)
     end
     self.chiptype = type
     self.chipinnum = self.roundmoney
-    self.roundmoney = money
+    self.roundmoney = money or 0
     self.addon_time = 0
     self.total_time = self.table.bettingtime
 

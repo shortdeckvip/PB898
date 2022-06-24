@@ -584,7 +584,7 @@ function Statistic:appendLogs(data, logid)
     local time = global.ctms()
 
     logid = logid or self:genLogId(data.stime)
-    --log.info('Statistic:appendLogs logid:%s sdata:%s', logid, cjson.encode(data))
+    log.info('Statistic:appendLogs logid:%s sdata:%s', logid, cjson.encode(data))
 
     local gameuserlog = {
         gamelog = {

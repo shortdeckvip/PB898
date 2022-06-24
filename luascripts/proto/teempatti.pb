@@ -1,6 +1,6 @@
 
-•&
-teempatti.protonetwork.cmdcommon.proto"†
+∂)
+teempatti.protonetwork.cmdcommon.proto"‡
 PBTeemPattiSeat+
 seat (2.network.cmd.PBSeatInfoRseat
 	isPlaying (R	isPlaying
@@ -23,7 +23,9 @@ chipinTime
 currentBetPos (RcurrentBetPos 
 addtimeCost (RaddtimeCost"
 addtimeCount (RaddtimeCount
-ischall (Rischall"–
+ischall (Rischall 
+totalChipin (RtotalChipin
+	cardsType (R	cardsType"–
 PBTeemPattiTableInfo
 gameId (RgameId
 	seatCount (R	seatCount
@@ -57,12 +59,13 @@ matchState
 PBTeemPattiPlayerSit8
 seatInfo (2.network.cmd.PBTeemPattiSeatRseatInfo 
 clientBuyin (RclientBuyin
-	buyinTime (R	buyinTime"å
+	buyinTime (R	buyinTime"™
 PBTeemPattiShowDealCardReq,
 idx (2.network.cmd.RoomIndexDataRidx
 sid (Rsid
 uid (Ruid
-	handcards (R	handcards"N
+	handcards (R	handcards
+	cardsType (R	cardsType"N
 PBTeemPattiCanShowDealCard
 sid (Rsid
 
@@ -103,18 +106,20 @@ situations"¿
 tableStarttime (RtableStarttime2
 seats (2.network.cmd.PBTeemPattiSeatRseats"Q
 PBTeemPattiUpdateSeat8
-seatInfo (2.network.cmd.PBTeemPattiSeatRseatInfo"F
+seatInfo (2.network.cmd.PBTeemPattiSeatRseatInfo"d
 PBTeemPattiHandCards
 sid (Rsid
-	handcards (R	handcards"N
+	handcards (R	handcards
+	cardsType (R	cardsType"N
 PBTeemPattiDealCard7
 cards (2!.network.cmd.PBTeemPattiHandCardsRcards")
 PBTeemPattiUpdatePots
-pot (Rpot"e
+pot (Rpot"É
 PBTeemPattiShowDealCard
 showType (RshowType
 sid (Rsid
-	handcards (R	handcards"z
+	handcards (R	handcards
+	cardsType (R	cardsType"z
 PBTeemPattiPotInfo
 sid (Rsid
 winMoney (RwinMoney
@@ -125,18 +130,23 @@ situations"¿
 potInfos (2.network.cmd.PBTeemPattiPotInfoRpotInfos"a
 PBTeemPattiNotifyBestHand_N$
 bestcardstype (Rbestcardstype
-	bestcards (R	bestcards"k
+	bestcards (R	bestcards"ß
 PBTeemPattiNotifyDuelCard_N
 type (Rtype
 	winnerSid (R	winnerSid
-loserSid (RloserSid"q
+loserSid (RloserSid:
+cards (2$.network.cmd.PBTeemPattiShowDealCardRcards"è
 PBTeemPattiDealCardOnlyRobot7
 cards (2!.network.cmd.PBTeemPattiHandCardsRcards
-isJoker (RisJoker*ë
+isJoker (RisJoker
+	isSpecial (R	isSpecial"M
+PBTeemPattiNotifyCharge
+uid (Ruid 
+chargeMoney (RchargeMoney*ë
 PBTeemPattiLeaveToSitState%
 !PBTeemPattiLeaveToSitState_Cancel$
  PBTeemPattiLeaveToSitState_Leave&
-"PBTeemPattiLeaveToSitState_Reserve*Ù
+"PBTeemPattiLeaveToSitState_Reserve*ø
 PBTeemPattiChipinType
 PBTeemPattiChipinType_NULL
 PBTeemPattiChipinType_FOLD
@@ -152,7 +162,9 @@ situations"¿
 "PBTeemPattiChipinType_CLEAR_STATUS"
 PBTeemPattiChipinType_REBUYING"
 PBTeemPattiChipinType_PRECHIPS 
-PBTeemPattiChipinType_BUYING*°
+PBTeemPattiChipinType_BUYING%
+!PBTeemPattiChipinType_BETING_LACK"
+PBTeemPattiChipinType_CHARGING*°
 PBTeemPattiCardWinType#
 PBTeemPattiCardWinType_HIGHCARD"
 PBTeemPattiCardWinType_ONEPAIR 

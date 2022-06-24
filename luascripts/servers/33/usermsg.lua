@@ -4,6 +4,7 @@ local cjson = require("cjson")
 local net = require(CLIBS["c_net"])
 local global = require(CLIBS["c_global"])
 
+-- 进入房间请求
 local function parseIntoGameRoomReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBIntoGameRoomReq_C", msg)
     if not rev then
@@ -17,7 +18,7 @@ local function parseIntoGameRoomReq(uid, linkid, msg)
     if rev.matchid == 0 and rev.ante ~= 0 then
         log.info("uid=%s,ante=%s", uid, rev.ante)
         local toserverid
-        rev.matchid, toserverid = MatchMgr:getMatchByAnte(rev.ante)
+        rev.matchid, toserverid = MatchMgr:getMatchByAnte(rev.ante)  -- 根据底注获取matchid
         if rev.matchid and rev.matchid ~= 0 then
             rev.roomid = 0
             log.info("rev.ante=%s,rev.matchid=%s find", rev.ante, rev.matchid)
@@ -40,7 +41,7 @@ local function parseIntoGameRoomReq(uid, linkid, msg)
         end
     end
 
-    local rm = MatchMgr:getMatchById(rev.matchid)
+    local rm = MatchMgr:getMatchById(rev.matchid)  -- 获取指定的房间管理器
 
     if not rm and rev.matchid == 0 and rev.ante == 0 then
         local toserverid
@@ -60,7 +61,7 @@ local function parseIntoGameRoomReq(uid, linkid, msg)
         end
     end
 
-    if not rm then
+    if not rm then  -- 如果房间管理器不存在
         log.debug("parseIntoGameRoomReq %s,%s not valid matchid", uid, tostring(rev.matchid))
         local t = {
             code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameFail"),
@@ -81,11 +82,13 @@ local function parseIntoGameRoomReq(uid, linkid, msg)
 
     local r
     if not rev.roomid or rev.roomid == 0 then -- 融合桌 rev.roomid 0
-        r = rm:getMiniEmptyRoom(uid, rev.ip, rev.api)
-    else
-        r = rm:getRoomById(rev.roomid)
+        -- r = rm:getMiniEmptyRoom(uid, rev.ip, rev.api)   -- 待修改
+        r = rm:getAvaiableRoom2(uid, rev.ip, rev.api)  -- 获取一个适合的房间
+        log.debug("parseIntoGameRoomReq(), getAvaiableRoom2(),uid=%s", uid)
+    else  -- 房间ID存在且不为0
+        r = rm:getRoomById(rev.roomid) -- 根据房间ID获取指定房间
     end
-    if not r then
+    if not r then  -- 如果房间不存在
         local t = {
             code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameFail")
         }
@@ -96,10 +99,11 @@ local function parseIntoGameRoomReq(uid, linkid, msg)
             pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_IntoGameRoomResp"),
             pb.encode("network.cmd.PBIntoGameRoomResp_S", t)
         )
+        log.debug("parseIntoGameRoomReq(),uid=%s,r=nil", uid)
         return
     end
 
-    r:userInto(uid, linkid, rev.matchid, nil, rev.ip, rev.api)
+    r:userInto(uid, linkid, rev.matchid, nil, rev.ip, rev.api)  -- 玩家进入房间
 
     --print("parseIntoGameRoomReq:", rm,r,rev.matchid)
     log.debug(
@@ -112,6 +116,7 @@ local function parseIntoGameRoomReq(uid, linkid, msg)
     )
 end
 
+-- 玩家请求离开
 local function parseLeaveGameRoomReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBLeaveGameRoomReq_C", msg)
     if not rev or not rev.idx then
@@ -135,6 +140,7 @@ local function parseLeaveGameRoomReq(uid, linkid, msg)
     end
 end
 
+-- 操作请求
 local function parseChipinReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBTexasChipinReq", msg)
     if not rev or not rev.idx then
@@ -150,6 +156,7 @@ local function parseChipinReq(uid, linkid, msg)
     r:userchipin(uid, rev.chipType, rev.chipinMoney)
 end
 
+-- 请求获取桌子信息
 local function parseTeemPattiTableInfoReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBTexasTableInfoReq", msg)
     if not rev or not rev.idx then
@@ -165,6 +172,7 @@ local function parseTeemPattiTableInfoReq(uid, linkid, msg)
     r:userTableInfo(uid, linkid, rev)
 end
 
+-- 
 local function parseGameMatchListReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBGameMatchListReq_C", msg)
     if not rev then
@@ -198,6 +206,7 @@ local function parseGameMatchListReq(uid, linkid, msg)
     )
 end
 
+-- 换桌请求
 local function parseChangeGameRoomReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBChangeGameRoom_C", msg)
     if not rev or not rev.idx then
@@ -235,6 +244,7 @@ local function parseChangeGameRoomReq(uid, linkid, msg)
     end
 end
 
+-- 聊天请求
 local function parseGameChatReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBGameChatReq_C", msg)
     if not rev or not rev.idx then
@@ -250,6 +260,7 @@ local function parseGameChatReq(uid, linkid, msg)
     r:userChat(uid, linkid, rev)
 end
 
+-- 发送表情请求
 local function parseGameToolSendReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBGameToolSendReq_C", msg)
     if not rev or not rev.idx then
@@ -265,6 +276,7 @@ local function parseGameToolSendReq(uid, linkid, msg)
     r:userTool(uid, linkid, rev)
 end
 
+-- 站起请求
 local function parseTeemPattiStandReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBTexasStandReq", msg)
     if not rev or not rev.idx then
@@ -280,6 +292,7 @@ local function parseTeemPattiStandReq(uid, linkid, msg)
     r:userStand(uid, linkid, rev)
 end
 
+-- 坐下请求
 local function parseTeemPattiSitReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBTexasSitReq", msg)
     if not rev or not rev.idx then
@@ -295,6 +308,7 @@ local function parseTeemPattiSitReq(uid, linkid, msg)
     r:userSit(uid, linkid, rev)
 end
 
+-- 买入请求
 local function parseTeemPattiBuyinReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBTexasBuyinReq", msg)
     --print(cjson.encode(rev))
@@ -310,6 +324,7 @@ local function parseTeemPattiBuyinReq(uid, linkid, msg)
     r:userBuyin(uid, linkid, rev)
 end
 
+-- 实时牌局
 local function parseTeemPattiReviewReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBTexasReviewReq", msg)
     if not rev or not rev.idx then
@@ -324,6 +339,7 @@ local function parseTeemPattiReviewReq(uid, linkid, msg)
     r:userReview(uid, linkid, rev)
 end
 
+-- 预操作
 local function parseTeemPattiPreOperateReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBTexasPreOperateReq", msg)
     if not rev or not rev.idx then
@@ -338,6 +354,7 @@ local function parseTeemPattiPreOperateReq(uid, linkid, msg)
     r:userPreOperate(uid, linkid, rev)
 end
 
+-- 请求获取桌子列表信息
 local function parseTeemPattiTableListInfoReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBTexasTableListInfoReq", msg)
     if not rev or not rev.matchid or not rev.roomid then
@@ -352,6 +369,7 @@ local function parseTeemPattiTableListInfoReq(uid, linkid, msg)
     r:userTableListInfoReq(uid, linkid, rev)
 end
 
+-- 请求增加思考时间
 local function parseTeemPattiAddTimeReq(uid, linkid, msg)
     local rev = pb.decode("network.cmd.PBTexasAddTimeReq", msg)
     if not rev or not rev.idx then

@@ -57,6 +57,7 @@ local function fillSeatInfo(seat, self)
 
     seatinfo.isPlaying = seat.isplaying and 1 or 0
     seatinfo.seatMoney = (seat.chips > seat.roundmoney) and (seat.chips - seat.roundmoney) or 0
+    seatinfo.totalChipin = seat.totalChipin
     seatinfo.chipinType = seat.chiptype
     seatinfo.chipinMoney = seat.chipinnum
     seatinfo.chipinTime = seat:getChipinLeftTime()
@@ -429,8 +430,6 @@ function Room:init()
 
     self.last_playing_users = {} -- 上一局参与的玩家列表
 
-    self.state = pb.enum_id("network.cmd.PBTeemPattiTableState", "PBTeemPattiTableState_None")
-
     self.reviewlogs = LogMgr:new(5)
     --实时牌局
     self.reviewlogitems = {} --暂存站起玩家牌局
@@ -752,9 +751,9 @@ function Room:userLeave(uid, linkid)
         self.mid,
         tostring(self.logid),
         uid,
-        user.chips,
-        user.currentbuyin,
-        user.totalbuyin
+        user.chips or 0,
+        user.currentbuyin or 0,
+        user.totalbuyin or 0
     )
 
     mutex.request(
@@ -1143,6 +1142,12 @@ function Room:reset()
     self.round_player_num = 0
     self.is_trigger_fold = false
     self.willLeaveRobot = nil
+    self.isOverPot = false
+    for k, seat in ipairs(self.seats) do
+        if seat then
+            seat.totalChipin = 0
+        end
+    end
 end
 
 function Room:potRake(total_pot_chips)
@@ -1704,6 +1709,7 @@ end
 
 function Room:start()
     self:reset()
+    self.hasFind = false
     self.state = pb.enum_id("network.cmd.PBTeemPattiTableState", "PBTeemPattiTableState_Start")
     self.gameId = self:getGameId()
     self.tableStartCount = self.tableStartCount + 1
@@ -1764,7 +1770,7 @@ function Room:start()
                     ip = user and user.ip or "",
                     api = user and user.api or "",
                     roomtype = self.conf.roomtype,
-                    roundid = user.roundId,
+                    roundid = user and user.roundId or "",
                     playchips = 20 * (self.conf and self.conf.fee or 0) -- 2021-12-24
                 }
             )
@@ -2413,7 +2419,7 @@ function Room:dealHandCardsCommon(seatcards, needredeal, robotfire)
                     seat.uid,
                     pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
                     pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_TeemPattiDealCardOnlyRobot"),
-                    pb.encode("network.cmd.PBTeemPattiDealCardOnlyRobot", {cards = seatcards, isJoker = true})
+                    pb.encode("network.cmd.PBTeemPattiDealCardOnlyRobot", {cards = seatcards, isJoker = true, isSpecial = false})
                 )
             end
         end
@@ -2466,7 +2472,7 @@ function Room:dealHandCards()
                 for _, seat in ipairs(self.seats) do
                     local v = self.users[seat.uid]
                     if v and not Utils:isRobot(v.api) and seat.isplaying then
-                        table.insert(msg.data, {uid = seat.uid, chips = 20 * (self.conf.fee or 0), betchips = 0})
+                        table.insert(msg.data, {uid = seat.uid, chips = 0, betchips = 0})
                     end
                 end
                 log.info("idx(%s,%s) start result request %s", self.id, self.mid, cjson.encode(msg))
@@ -2954,7 +2960,7 @@ function Room:finish()
     local showcard_players = 1
     self:broadcastShowCardToAll()
 
-    local t_msec = showcard_players * 200 + (1 * 200 + 4000)
+    local t_msec = showcard_players * 200 + (1 * 200 + 4000) + 1000
 
     --jackpot 中奖需要额外增加下局开始时间
     if self.sdata.jp and self.sdata.jp.uid and showcard_players > 0 then
@@ -2985,6 +2991,9 @@ function Room:finish()
         pot = srcpot,
         items = {}
     }
+
+    self:checkCheat() -- 防倒币行为
+
     for k, v in ipairs(self.seats) do
         local user = self.users[v.uid]
         if user and v.isplaying then
@@ -3022,29 +3031,29 @@ function Room:finish()
             self.sdata.users[v.uid].ugameinfo.texas.bestcardstype = v.handtype
             self.sdata.users[v.uid].ugameinfo.texas.leftchips = v.chips
 
-            --输家防倒币行为
-            --1.输最多玩家输币 >= 100底注
-            --2.输最多玩家看牌后跟注次数大于3次
-            --3.输最多玩家主动弃牌
-            --4.弃牌时仅两个玩家
-            --5.有两个或两个以上真人
-            if self.sdata.users[v.uid].extrainfo then
-                local extrainfo = cjson.decode(self.sdata.users[v.uid].extrainfo)
-                if
-                    not Utils:isRobot(user.api) and extrainfo and self.sdata.users[v.uid].totalpureprofit < 0 and
-                        math.abs(self.sdata.users[v.uid].totalpureprofit) >= 100 * self.conf.ante and
-                        v.last_active_chipintype ==
-                            pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD") and
-                        not user.is_bet_timeout and
-                        (user.check_call_num or 0) >= 3 and
-                        (self.round_player_num or 0) >= 2 and
-                        self.is_trigger_fold
-                 then
-                    extrainfo["cheat"] = true
-                    self.sdata.users[v.uid].extrainfo = cjson.encode(extrainfo)
-                    self.has_cheat = true
-                end
-            end
+            -- --输家防倒币行为
+            -- --1.输最多玩家输币 >= 100底注
+            -- --2.输最多玩家看牌后跟注次数大于3次
+            -- --3.输最多玩家主动弃牌
+            -- --4.弃牌时仅两个玩家
+            -- --5.有两个或两个以上真人
+            -- if self.sdata.users[v.uid].extrainfo then
+            --     local extrainfo = cjson.decode(self.sdata.users[v.uid].extrainfo)
+            --     if
+            --         not Utils:isRobot(user.api) and extrainfo and self.sdata.users[v.uid].totalpureprofit < 0 and
+            --             math.abs(self.sdata.users[v.uid].totalpureprofit) >= 100 * self.conf.ante and
+            --             v.last_active_chipintype ==
+            --                 pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD") and
+            --             not user.is_bet_timeout and
+            --             (user.check_call_num or 0) >= 3 and
+            --             (self.round_player_num or 0) >= 2 and
+            --             self.is_trigger_fold
+            --      then
+            --         extrainfo["cheat"] = true
+            --         self.sdata.users[v.uid].extrainfo = cjson.encode(extrainfo)
+            --         self.has_cheat = true
+            --     end
+            -- end
 
             table.insert(
                 reviewlog.items,
@@ -3115,21 +3124,35 @@ function Room:finish()
     end
     --赢家防倒币行为
     for _, v in ipairs(self.seats) do
-        local user = self.users[v.uid]
-        if user and v.isplaying then
-            if self.has_cheat and self.sdata.users[v.uid].extrainfo and self.sdata.users[v.uid].totalpureprofit > 0 then --盈利玩家
-                local extrainfo = cjson.decode(self.sdata.users[v.uid].extrainfo)
-                if not Utils:isRobot(user.api) and extrainfo then
-                    extrainfo["cheat"] = true
-                    self.sdata.users[v.uid].extrainfo = cjson.encode(extrainfo)
-                end
-            end
-        end
+        -- local user = self.users[v.uid]
+        -- if user and v.isplaying then
+        --     if self.has_cheat and self.sdata.users[v.uid].extrainfo and self.sdata.users[v.uid].totalpureprofit > 0 then --盈利玩家
+        --         local extrainfo = cjson.decode(self.sdata.users[v.uid].extrainfo)
+        --         if not Utils:isRobot(user.api) and extrainfo then
+        --             extrainfo["cheat"] = true
+        --             self.sdata.users[v.uid].extrainfo = cjson.encode(extrainfo)
+        --         end
+        --     end
+        -- end
         --解决结算后马上离开，计算战绩多扣导致显示不正确的问题
         v.roundmoney = 0
     end
 
     self.sdata.etime = self.endtime
+
+    for _, seat in ipairs(self.seats) do
+        local user = self.users[seat.uid]
+        if user and seat.isplaying then
+            if not Utils:isRobot(user.api) and self.sdata.users[seat.uid].extrainfo then -- 盈利玩家
+                local extrainfo = cjson.decode(self.sdata.users[seat.uid].extrainfo)
+                if  extrainfo then
+                    extrainfo["totalmoney"] = (self:getUserMoney(seat.uid) or 0) + seat.chips -- 总金额                    
+                    log.debug("self.sdata.users[seat.uid].extrainfo uid=%s,totalmoney=%s", seat.uid, extrainfo["totalmoney"])
+                    self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
+                end
+            end
+        end
+    end
     if self:needLog() then
         self.statistic:appendLogs(self.sdata, self.logid)
     end
@@ -3598,8 +3621,34 @@ function Room:userTool(uid, linkid, rev)
         return
     end
     if self:getUserMoney(uid) < (self.conf and self.conf.toolcost or 0) then
-        log.info("idx(%s,%s,%s) not enough money %s", self.id, self.mid, tostring(self.logid), uid)
-        handleFailed(1)
+        -- 余额不足时则只扣除筹码(如果筹码足够)
+        local leftChips = self.seats[rev.fromsid].chips - self.seats[rev.fromsid].roundmoney
+        if leftChips < (self.conf and self.conf.toolcost or 0) then -- 如果筹码不够
+            log.info("idx(%s,%s,%s) not enough money %s", self.id, self.mid, tostring(self.logid), uid)
+            handleFailed(1)
+        else
+            log.info("idx(%s,%s,%s) userTool() enough chips %s", self.id, self.mid, tostring(self.logid), uid)
+            -- 筹码足够
+            self.seats[rev.fromsid].chips = self.seats[rev.fromsid].chips - (self.conf and self.conf.toolcost or 0)
+            pb.encode(
+                "network.cmd.PBGameNotifyTool_N",
+                {
+                    fromsid = rev.fromsid,
+                    tosid = rev.tosid,
+                    toolID = rev.toolID
+                },
+                function(pointer, length)
+                    self:sendCmdToPlayingUsers(
+                        pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                        pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_GameNotifyTool"),
+                        pointer,
+                        length
+                    )
+                end
+            )
+            -- 广播该座位信息(更新玩家身上筹码)
+            self:sendPosInfoToAll(self.seats[rev.fromsid])
+        end
         return
     end
     if user.expense and coroutine.status(user.expense) ~= "dead" then
@@ -3801,8 +3850,25 @@ function Room:userAddTime(uid, linkid, rev)
         return
     end
     if self:getUserMoney(uid) < (self.conf and self.conf.addtimecost[seat.addon_count + 1] or 0) then
-        log.info("idx(%s,%s,%s) user add time: not enough money %s", self.id, self.mid, tostring(self.logid), uid)
-        handleFailed(1)
+        -- 如果身上金额不足，则只扣除筹码
+        local leftChips = seat.chips - seat.roundmoney
+        -- 检测身上筹码是否足够
+        if leftChips < (self.conf and self.conf.addtimecost[seat.addon_count + 1] or 0) then
+            log.info("idx(%s,%s,%s) user add time: not enough money %s", self.id, self.mid, tostring(self.logid), uid)
+            handleFailed(1)
+        else
+            log.info("idx(%s,%s,%s) userAddTime() has enough chips %s", self.id, self.mid, tostring(self.logid), uid)
+
+            -- 如果有足够筹码，则扣除筹码
+            seat.chips = seat.chips - (self.conf and self.conf.addtimecost[seat.addon_count + 1] or 0)
+
+            seat.addon_time = seat.addon_time + (self.conf.addtime or 0)
+            seat.addon_count = seat.addon_count + 1
+            seat.total_time = seat:getChipinLeftTime() -- 本次操作剩余时长
+            self:sendPosInfoToAll(seat, pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_BETING"))
+            timer.cancel(self.timer, TimerID.TimerID_Betting[1])
+            timer.tick(self.timer, TimerID.TimerID_Betting[1], seat.total_time * 1000, onBettingTimer, self)
+        end
         return
     end
     if self.conf.addtimecost[seat.addon_count + 1] > 0 then
@@ -4076,4 +4142,160 @@ function Room:userWalletResp(rev)
             Utils:transferRepay(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_RETURNCHIPS"), v)
         end
     end
+end
+
+-- 防倒币行为  2022-3-2
+function Room:checkCheat()
+    --[[
+TeenPatti
+规则1：
+	1.输赢最多玩家均非AI
+	2.输最多玩家牌小于KJ10
+	3.输最多玩家看牌后下注/加注总额度 >= 50底注
+	4.输最多玩家看牌后下注/加注次数 >= 2
+	
+规则2:
+	1.输赢最多玩家均非AI
+	2.输最多玩家盲下注/盲加注总额度 >= 50底注
+	3.输最多玩家不看牌弃牌
+--]]
+    self.maxWinnerUID = 0 -- 最大赢家UID
+    self.maxLoserUID = 0 -- 最大输家UID
+
+    self:checkWinnerAndLoserAreAllReal()
+
+    -- for k, seat in ipairs(self.seats) do
+    --     local user = self.users[seat.uid]
+    --     if user and seat.isplaying then
+    --     end
+    -- end
+
+    if self.maxWinnerLoserAreAllReal then -- 如果输赢最多玩家均非AI
+        local user = self.users[self.maxLoserUID]
+        local seat = self:getSeatByUid(self.maxLoserUID)
+        local hasCheat = false
+        if (seat and seat.ischeck) then -- 如果已经看牌
+            -- 规则1：
+            -- 1.输赢最多玩家均非AI
+            -- 2.输最多玩家牌小于KJ10
+            -- 3.输最多玩家看牌后下注/加注总额度 >= 50底注
+            -- 4.输最多玩家看牌后下注/加注次数 >= 2
+
+            -- 判断输最多玩家的牌是否小于 KKA
+            local cards = {0x10D, 0x20D, 0x30E}
+            if self.poker:isBankerWin(seat.handcards, cards) < 0 then
+                -- 输最多玩家看牌后下注/加注总额度 >= 50底注
+                if -- self.sdata.users[self.maxLoserUID].totalpureprofit < 0 and
+                    --     math.abs(self.sdata.users[self.maxLoserUID].totalpureprofit) >= 50 * self.conf.ante
+                    (seat.chips - seat.last_chips) < 0 and math.abs(seat.chips - seat.last_chips) >= 50 * self.conf.ante then
+                    -- 输最多玩家看牌后下注/加注次数 >= 2
+                    if (user.check_call_num or 0) >= 2 then
+                        hasCheat = true
+                    end
+                end
+            else
+                -- 规则3:
+                -- 1.输赢最多玩家均非AI
+                -- 2.输最多玩家看牌后下注/盲加注总额度 >= 50底注
+                -- 3.输最多玩家大于对子
+                -- 4.输最多玩家主动弃牌
+                log.debug("DQW card larger KJ10")
+                local cards = {0x10D, 0x10B, 0x10E} -- 最大的对子
+                if
+                    seat and
+                        seat.last_active_chipintype ==
+                            pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD")
+                 then
+                    if self.poker:isBankerWin(seat.handcards, cards) > 0 then
+                        if
+                            (seat.chips - seat.last_chips) < 0 and
+                                math.abs(seat.chips - seat.last_chips) >= 50 * self.conf.ante
+                         then
+                            log.debug("DQW hasCheat 3")
+                            hasCheat = true
+                        end
+                    end
+                end
+            end
+        else -- 该玩家未看牌
+            -- 规则2:
+            -- 1.输赢最多玩家均非AI
+            -- 2.输最多玩家盲下注/盲加注总额度 >= 50底注
+            -- 3.输最多玩家不看牌弃牌
+
+            -- 输最多玩家弃牌
+            if
+                seat and
+                    seat.last_active_chipintype ==
+                        pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD") and
+                    (seat.chips - seat.last_chips) < 0 and
+                    math.abs(seat.chips - seat.last_chips) >= 50 * self.conf.ante
+             then
+                hasCheat = true
+            end
+        end
+
+        if hasCheat then
+            log.debug("has player cheat, maxWinnerUID=%s,maxLoserUID=%s", self.maxWinnerUID, self.maxLoserUID)
+            if self.sdata.users[self.maxLoserUID].extrainfo then
+                local extrainfo = cjson.decode(self.sdata.users[self.maxLoserUID].extrainfo)
+                if extrainfo then
+                    extrainfo["cheat"] = true
+                    self.sdata.users[self.maxLoserUID].extrainfo = cjson.encode(extrainfo)
+                end
+            end
+
+            if self.sdata.users[self.maxWinnerUID].extrainfo then
+                local extrainfo = cjson.decode(self.sdata.users[self.maxWinnerUID].extrainfo)
+                if extrainfo then
+                    extrainfo["cheat"] = true
+                    self.sdata.users[self.maxWinnerUID].extrainfo = cjson.encode(extrainfo)
+                end
+            end
+        end
+    end
+end
+
+-- 判断该局输赢最多的两个玩家是否都是真人
+function Room:checkWinnerAndLoserAreAllReal()
+    if not self.hasFind then -- 如果还未查找
+        self.hasFind = true
+        self.maxWinnerLoserAreAllReal = false -- 最大赢家和输家是否都是真人（默认不全是真人）
+
+        self.maxWinnerUID = 0 -- 最大的赢家uid
+        self.maxLoserUID = 0 -- 最大输家uid
+        local maxWin = 0 -- 赢到的最大金额
+        local maxLoss = 0 -- 输掉的最大金额
+        for k, seat in ipairs(self.seats) do
+            local user = self.users[seat.uid or 0]
+            if user and seat.isplaying then
+                -- local totalwin = seat.chips - (seat.totalbuyin - seat.currentbuyin) -- 该玩家总输赢
+                local totalwin = seat.chips - seat.last_chips -- 该玩家总盈利
+                if totalwin > maxWin then
+                    maxWin = totalwin
+                    self.maxWinnerUID = seat.uid
+                elseif totalwin < maxLoss then
+                    maxLoss = totalwin
+                    self.maxLoserUID = seat.uid
+                end
+            end -- ~if
+        end -- ~for
+
+        -- 判断最大输家和最大赢家是否都是真人
+        if 0 ~= self.maxWinnerUID and 0 ~= self.maxLoserUID then
+            local user = self.users[self.maxWinnerUID]
+            if user then
+                if not Utils:isRobot(user.api) then -- 如果该玩家不是机器人
+                    user = self.users[self.maxLoserUID]
+                    if user then
+                        if not Utils:isRobot(user.api) then
+                            self.maxWinnerLoserAreAllReal = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return self.maxWinnerLoserAreAllReal -- 默认都是真人
 end

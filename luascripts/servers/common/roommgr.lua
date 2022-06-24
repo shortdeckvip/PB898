@@ -84,6 +84,51 @@ function RoomMgr:getMiniEmptyRoom(uid, ip, api)
     return room
 end
 
+-- 获取一个满足要求的房间
+function RoomMgr:getAvaiableRoom2(uid, ip, api)
+    -- local conf = self.conf   -- 该级别房间的配置信息
+    local conf = MatchMgr:getConfByMid(self.mid)
+    local room
+    local isRobot = false
+    local isNew = false
+
+    if Utils:isRobot(api) then
+        isRobot = true
+    end
+
+    if conf then
+        if conf.special and conf.special == 1 then -- 如果是新人专场
+            isNew = true
+        end
+    end
+
+    for _, v in pairs(self.mgr) do   -- 遍历所有房间
+        local playerNum, robotNum = v:count() -- 获取所有玩家数及机器人人数
+        local empty = conf.maxuser - playerNum   -- 空座位数
+        if empty > 0 and not Utils:hasIP(v, uid, ip, api) then -- 如果v房间还有空座位
+            if isRobot then
+                if empty > 1 then   -- 超过1个空座位时机器人才可进入
+                    return v
+                end
+            else -- 真实玩家
+                if isNew then  -- 如果是新手专场
+                    if playerNum == robotNum then  -- 如果还未有真人
+                        return v
+                    end
+                else
+                    return v
+                end
+            end
+        end
+    end
+
+    if not room then
+        room = self:createRoom()  -- 新建一个房间
+        log.debug("getAvaiableRoom2(), createRoom(),uid=%s", uid)
+    end
+    return room
+end
+
 -- 扩充房间
 function RoomMgr:expandRoom()
     local totalempty = 0
@@ -153,12 +198,12 @@ end
 -- 参数 c：房间人数限制，默认为500
 -- 参数 uid: 玩家ID   slot游戏中uid作为房间ID
 function RoomMgr:getAvaiableRoom(c, uid)
-    local cnt = 0
+    local cnt = -1
     local r = nil
     local conf = MatchMgr:getConfByMid(self.mid) -- 获取某一级别的房间配置
     for _, v in pairs(self.mgr) do --遍历所有房间
         local vc, robotCount = v:count(uid) -- 该房间中总玩家数
-        if vc < (c or 100) and (not v:lock()) and vc >= cnt then
+        if vc < (c or 100) and (not v:lock()) and vc > cnt then
             if conf and conf.single_profit_switch then
                 if vc == robotCount then
                     r = v
@@ -171,7 +216,7 @@ function RoomMgr:getAvaiableRoom(c, uid)
         end
     end
     if not r then
-        if 43 == global.stype() then  -- slot游戏是根据玩家ID作为房间ID
+        if 43 == global.stype() then -- slot游戏是根据玩家ID作为房间ID
             r = self:createRoom(uid) -- 创建一个新房间
         else
             for i = 1, (conf.mintable or 1) do

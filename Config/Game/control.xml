@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+
+<!--
+
+-->
+<CONTROL>
+    <!-- control_type：1-单人控制  2-全局控制  0-不控制  -->
+	<info control_type="2" />
+</CONTROL>

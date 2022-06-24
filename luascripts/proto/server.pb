@@ -1,5 +1,5 @@
 
-¤‡
+í
 server.protonetwork.inter"M
 SharedSynData
 uids (Ruids
@@ -281,7 +281,14 @@ river_bets	 (2.network.inter.PBTexasBetsInfoR	riverBets
 PBJackpotReqResp0
 data (2.network.inter.PBJackPotDataRdata"+
 PBStatisticOnlineNotify
-uid (Ruid"2
+uid (Ruid"§
+PBPlayHandReqResp
+uid (Ruid
+matchid (Rmatchid
+roomid (Rroomid
+roomtype (Rroomtype
+gameid (Rgameid
+playhand (Rplayhand"2
 PBUserItemData
 id (Rid
 num (Rnum"Œ
@@ -328,7 +335,7 @@ carrybound"2
 title (	Rtitle
 content (	Rcontent
 deadline (Rdeadline
-acid (Racid"Æ
+acid (Racid"ä
 PBUserProfitUpdateData
 uid (Ruid
 deposit (Rdeposit
@@ -355,7 +362,8 @@ cresttimes
 	leftchips (R	leftchips
 	rebateadd (R	rebateadd
 	rebatesub (R	rebatesub
-ispvp (Rispvp"¢
+ispvp (Rispvp
+	resettime (R	resettime"¢
 PBUserProfitResultData
 uid (Ruid
 chips (Rchips
@@ -372,7 +380,13 @@ cresttimes
 matchid (Rmatchid
 roomid (Rroomid9
 data (2%.network.inter.PBUserProfitResultDataRdata
-ispvp (Rispvp"Ã
+ispvp (Rispvp"Ž
+Game2UserQueryChargeInfo
+uid (Ruid
+matchid (Rmatchid
+roomid (Rroomid
+gameid (Rgameid
+charge (Rcharge"Ã
 PBTablePlayersEntry
 gameid (Rgameid
 roomtype (Rroomtype
@@ -463,7 +477,23 @@ PBSynDBLog
 roomid (Rroomid
 matchid (Rmatchid
 roomtype (Rroomtype
-num (Rnum*ƒ
+num (Rnum"_
+PBRobotInfo
+uid (Ruid
+name (	Rname
+nickurl (	Rnickurl
+api (	Rapi"‘
+PBRobot2GameCreateRobotResp
+roomid (Rroomid
+matchid (Rmatchid
+num (Rnum.
+data (2.network.inter.PBRobotInfoRdata"•
+PBGame2RobotNotifyRemoveRobot
+srvid (Rsrvid
+roomid (Rroomid
+matchid (Rmatchid
+roomtype (Rroomtype
+uid (Ruid*ƒ
 ServerCmdType
 ServerCmdType_Shared€þ
 ServerCmdType_Forward€ü
@@ -525,7 +555,7 @@ $Game2MutexSubCmd_MutexUserRoomIdxReq+
 (Game2MutexSubCmd_MutexAllUserRoomIdxRespˆ 0
 +Game2MutexSubCmd_MutexUserMoneyUpdateNotify@*:
 SS2StatisticSubCmd$
- SS2StatisticSubCmd_UserActionReq*—
+ SS2StatisticSubCmd_UserActionReq*Á
 Game2StatisticSubCmd&
 "Game2StatisticSubCmd_UserActionReq$
  Game2StatisticSubCmd_GameCoinReq(
@@ -538,7 +568,8 @@ $Game2StatisticSubCmd_MoneyChangedReq)
 #Game2StatisticSubCmd_JackpotReqResp	,
 'Game2StatisticSubCmd_TexasStatisticRespˆ ,
 'Game2StatisticSubCmd_JackpotUserWinning‰ &
-!Game2StatisticSubCmd_OnlineNotifyŠ *å
+!Game2StatisticSubCmd_OnlineNotifyŠ (
+$Game2StatisticSubCmd_PlayHandReqResp*å
 STATISTIC_ACTION_TYPE
 ACTION_TYPE_LOGIN
 ACTION_TYPE_INTOROOM
@@ -575,7 +606,7 @@ $Game2StatisticSubCmd_MoneyChangedReq)
 MONEY_CHANGE_COIN
 MONEY_CHANGE_TOOL
 MONEY_CHANGE_VIP
-MONEY_CHANGE_DIAMOND*ý
+MONEY_CHANGE_DIAMOND*ù
 MONEY_CHANGE_REASON
 MONEY_CHANGE_TRAIN
 MONEY_CHANGE_CHARGE
@@ -611,20 +642,26 @@ $Game2StatisticSubCmd_MoneyChangedReq)
 MONEY_CHANGE_TPBET_BET 
 MONEY_CHANGE_TPBET_SETTLE!
 MONEY_CHANGE_SLOT_BET"
-MONEY_CHANGE_SLOT_SETTLE#
+MONEY_CHANGE_SLOT_SETTLE#
+MONEY_CHANGE_DICE_BET$
+MONEY_CHANGE_DICE_SETTLE%
+MONEY_CHANGE_SEOTDAWAR_BET&!
+MONEY_CHANGE_SEOTDAWAR_SETTLE'
 MONEY_CHANGE_WHEEL_SETTLEÊ
-MONEY_CHANGE_WHEEL_BETË*\
-USER_ROLE_TYPE
+MONEY_CHANGE_WHEEL_BETË*r
+USER_ROLE_TYPE
+USER_ROLE_BANKER
 USER_ROLE_TEXAS_SB
 USER_ROLE_TEXAS_BB	
 USER_ROLE_TEXAS_PLAYER
-*Þ
+*‡
 Game2UserInfoSubCmd&
 "Game2UserInfoSubCmd_UserAtomUpdate 
 Game2UserInfoSubCmd_PostMail&
 "Game2UserInfoSubCmd_JackpotReqResp(
 $Game2UserInfoSubCmd_UpdateProfitInfo+
-'Game2UserInfoSubCmd_ProfitResultReqResp*@
+'Game2UserInfoSubCmd_ProfitResultReqResp'
+#Game2UserInfoSubCmd_QueryChargeInfo*@
 MAILBOX_TYPE
 MAILBOX_TYPE_MAIL
 MAILBOX_TYPE_ANNOUNCE*;
@@ -656,6 +693,9 @@ $Servers2NotifySubCmdID_PushMsgToUser$
  Servers2DBProxySubCmdID_CRUDResp*\
 Game2GameSubCmdID#
 Game2GameSubCmdID_ClientForward"
-Game2GameSubCmdID_ToolsForward*>
+Game2GameSubCmdID_ToolsForward*»
 Game2RobotSubCmdID(
-$Game2RobotSubCmdID_NotifyCreateRobot
+$Game2RobotSubCmdID_NotifyCreateRobot)
+%Game2RobotSubCmdID_NotifyCreateRobot2&
+"Game2RobotSubCmdID_CreateRobotResp(
+$Game2RobotSubCmdID_NotifyRemoveRobot

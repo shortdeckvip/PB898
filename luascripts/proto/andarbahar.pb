@@ -1,5 +1,5 @@
 
-¨
+Ì
 andarbahar.protonetwork.cmdcommon.proto"‰
 PBAndarBaharNotifyStart_N
 t (Rt
@@ -29,9 +29,10 @@
 PBAndarBaharTypeStatisticData
 type (Rtype
 hitcount (Rhitcount
-lasthit (Rlasthit"/
+lasthit (Rlasthit"S
 PBAndarBaharLogData
-wintype (Rwintype"œ
+wintype (Rwintype"
+winpokertype (Rwinpokertype"œ
 PBAndarBaharNotifyShow_N
 cardnum (Rcardnum(
 card (2.network.cmd.PBPokerRcard<

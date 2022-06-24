@@ -12,6 +12,15 @@ local function parseQueryUserInfo(srvid, linkid, msg)
     end
 end
 
+-- 解析查询充值信息
+local function parseUser2GameUserChargeInfo(srvid,linkid, msg)
+    local rev = pb.decode("network.inter.Game2UserQueryChargeInfo", msg)
+    local r = MatchMgr:getRoomById(rev.matchid, rev.roomid)
+    if r and type(r.userQueryChargeInfo) == "function" then
+        r:userQueryChargeInfo(rev.uid, rev.charge)
+    end
+end
+
 local function parseWalletOpResp(srvid, linkid, msg)
     local rev = pb.decode("network.inter.PBMoneyAtomUpdate", msg)
     --log.info("parseWalletOpResp:%s", cjson.encode(rev))
@@ -62,6 +71,14 @@ local function parseJackpotUpdate(srvid, linkid, msg)
     --
 end
 
+local function parsePlayHand(srvid, linkid, msg)
+    local rev = pb.decode("network.inter.PBPlayHandReqResp", msg)
+    local r = MatchMgr:getRoomById(rev.matchid, rev.roomid)
+    if r and type(r.userQueryPlayHand) == "function" then
+        r:userQueryPlayHand(rev.uid, rev.playhand)
+    end
+end
+
 local function parseGame2GameForward(srvid, linkid, msg)
     local rev = pb.decode("network.inter.PBGame2GameClientForward", msg)
 
@@ -73,7 +90,7 @@ local function parseGame2GameToolsForward(srvid, linkid, msg)
     local rev = pb.decode("network.inter.PBGame2GameToolsForward", msg)
     if rev.matchid == 0 and rev.roomid == 0 then
         log.info("parseGame2GameToolsForward  rev.jdata = %s", rev.jdata)
-        MatchMgr:notifyStopServer(rev.jdata) -- 通知关服等
+        MatchMgr:notifyStopServer(rev.jdata)  -- 通知关服等 
     else
         local r = MatchMgr:getRoomById(rev.matchid, rev.roomid)
         if r and type(r.tools) == "function" then
@@ -100,6 +117,21 @@ local function parseUser2GameProfitResultReqResp(srvid, linkid, msg)
     end
 end
 
+-- 获取机器人信息  2022-3-9
+local function parseGame2RobotCreateRobotResp(srvid, linkid, msg)
+    log.info("DQW parseGame2RobotCreateRobotResp(),linkid=%s,srvid=%s,msg=%s", tostring(linkid), srvid, tostring(msg))
+    
+    -- local rev = pb.decode("network.inter.PBRobot2GameCreateRobotResp", msg)
+    local rev = cjson.decode(msg)
+
+    --log.warn("DQW parseGame2RobotCreateRobotResp(),linkid=%s,srvid=%s", tostring(linkid), srvid)
+    local r = MatchMgr:getRoomById(rev.matchid, rev.roomid)
+    if r and type(r.createRobotResult) == "function" and rev.data then
+        r:createRobotResult(rev.data)
+    end
+end
+
+-- 接收查询到的用户信息
 Forward_Register(
     pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Money"),
     pb.enum_id("network.inter.Game2MoneySubCmd", "Game2MoneySubCmd_QueryUserInfo"),
@@ -151,4 +183,28 @@ Forward_Register(
     pb.enum_id("network.inter.Game2UserInfoSubCmd", "Game2UserInfoSubCmd_ProfitResultReqResp"),
     "",
     parseUser2GameProfitResultReqResp
+)
+
+Forward_Register(
+    pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2UserInfo"),
+    pb.enum_id("network.inter.Game2UserInfoSubCmd", "Game2UserInfoSubCmd_QueryChargeInfo"),
+    "",
+    parseUser2GameUserChargeInfo
+)
+
+
+
+Forward_Register(
+    pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Robot"),
+    pb.enum_id("network.inter.Game2RobotSubCmdID", "Game2RobotSubCmdID_CreateRobotResp"),
+    "",
+    parseGame2RobotCreateRobotResp  -- 2022-3-9
+)
+
+
+Forward_Register(
+    pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Statistic"),
+    pb.enum_id("network.inter.Game2StatisticSubCmd", "Game2StatisticSubCmd_PlayHandReqResp"),
+    "",
+    parsePlayHand
 )

@@ -32,7 +32,9 @@ local conf = {
         max_player_num = 5, -- 随机最大人数
         update_interval = 5, -- 多少局更新一次
         global_profit_switch = false, -- 根据盈利率控制
-        single_profit_switch = false -- 单人输赢控制
+        single_profit_switch = false, -- 单人输赢控制
+        robotBetChipProb = {5000, 2500, 1250, 1000, 600, 400, 200, 80, 20}, -- 机器人下注筹码概率
+        --robotBetAreaProb = {3000,3000，500} -- 机器人下注区域概率
     }
 }
 

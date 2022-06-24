@@ -74,7 +74,8 @@ local TimerID = {
     TimerID_Buyin = {11, 1000},
     TimerID_PreflopAnimation = {12, 1000},
     TimerID_FlopTurnRiverAnimation = {13, 1000},
-    TimerID_Expense = {14, 5000}
+    TimerID_Expense = {14, 5000},
+    TimerID_Result = {17, 1200}
 }
 
 local EnumUserState = {
@@ -535,6 +536,12 @@ function Room:init()
 
     self.tableStartCount = 0
     self.logid = self.statistic:genLogId()
+
+    self.commonCards = {} -- 5张公共牌
+    self.seatCards = {} -- 各座位的手牌(每人2张)
+    self.seatCardsType = {} -- 各座位最大牌牌型
+    self.maxCardsIndex = 0 -- 最大牌所在位置
+    self.minCardsIndex = 0 -- 最小牌所在位置
 end
 
 function Room:reload()
@@ -672,6 +679,14 @@ function Room:userMutexCheck(uid, code)
     end
 end
 
+function Room:queryUserResult(ok, ud)
+    if self.timer then
+        timer.cancel(self.timer, TimerID.TimerID_Result[1])
+        log.debug("idx(%s,%s) query userresult ok:%s", self.id, self.mid, tostring(ok))
+        coroutine.resume(self.result_co, ok, ud)
+    end
+end
+
 function Room:userLeave(uid, linkid)
     log.info("idx(%s,%s) userLeave:%s", self.id, self.mid, uid)
     local function handleFailed()
@@ -779,6 +794,7 @@ function Room:userLeave(uid, linkid)
         log.info("idx(%s,%s) maxraisepos %s", self.id, self.mid, self.maxraisepos)
     end
 
+    user.roundmoney = user.roundmoney or 0
     self.pots[self.potidx].money = self.pots[self.potidx].money + user.roundmoney
     -- 结算
     --local val = s.chips - s.last_chips
@@ -887,6 +903,11 @@ local function onTimeout(arg)
     arg[2]:userQueryUserInfo(arg[1], false, nil)
 end
 
+--
+local function onResultTimeout(arg)
+    arg[1]:queryUserResult(false, nil)
+end
+
 local function onExpenseTimeout(arg)
     timer.cancel(arg[2].timer, TimerID.TimerID_Expense[1])
     local user = arg[2].users[arg[1]]
@@ -950,6 +971,14 @@ function Room:userInto(uid, linkid, mid, quick, ip, api)
     user.ip = ip
     user.totalbuyin = user.totalbuyin or 0
     user.state = EnumUserState.Intoing
+    -- seat info
+    user.chips = user.chips or 0
+    user.currentbuyin = user.currentbuyin or 0
+    user.roundmoney = user.roundmoney or 0
+    
+    -- 从坐下到站起期间总买入和总输赢
+    user.totalwin = user.totalwin or 0
+
     --座位互斥
     local seat, inseat = nil, false
     for k, v in ipairs(self.seats) do
@@ -2389,7 +2418,8 @@ function Room:getNextState()
 
     if oldstate == pb.enum_id("network.cmd.PBTexasTableState", "PBTexasTableState_PreChips") then
         self.state = pb.enum_id("network.cmd.PBTexasTableState", "PBTexasTableState_PreFlop")
-        self:dealPreFlop()
+        -- self:dealPreFlop() -- 发手牌(每人2张)
+        self:dealPreFlopNew()
     elseif oldstate == pb.enum_id("network.cmd.PBTexasTableState", "PBTexasTableState_PreFlop") then
         self.state = pb.enum_id("network.cmd.PBTexasTableState", "PBTexasTableState_Flop")
         self:dealFlop()
@@ -2433,6 +2463,83 @@ function Room:dealPreChips()
     end
 end
 
+-- 发手牌(每人2张)
+function Room:dealPreFlopNew()
+    local robotlist = {} -- 机器人列表
+    local hasplayer = false -- 是否有真实玩家参与游戏
+    for _, seat in ipairs(self.seats) do
+        local user = self.users[seat.uid]
+        if user and seat.isplaying then
+            if Utils:isRobot(user.api) then
+                table.insert(robotlist, seat.uid)
+            else
+                hasplayer = true
+            end
+        end
+    end
+    if self.conf and self.conf.single_profit_switch and self.has_player_inplay then -- 如果单人控制 且 有真实玩家参与游戏
+        self.result_co =
+            coroutine.create(
+            function()
+                local msg = {ctx = 0, matchid = self.mid, roomid = self.id, data = {}, ispvp = true}
+                for _, seat in ipairs(self.seats) do
+                    local v = self.users[seat.uid]
+                    if v and not Utils:isRobot(v.api) and seat.isplaying then -- 如果是参与游戏的真实玩家
+                        table.insert(msg.data, {uid = seat.uid, chips = 0, betchips = 0})
+                    end
+                end
+                log.info("idx(%s,%s) start result request %s", self.id, self.mid, cjson.encode(msg))
+                Utils:queryProfitResult(msg) -- 获取盈利控制结果
+                local ok, res = coroutine.yield() -- 等待查询结果
+                local winlist, loselist = {}, {} -- 赢家列表，输家列表
+                if ok and res then
+                    for _, v in ipairs(res) do -- 遍历结果
+                        local uid, r, maxwin = v.uid, v.res, v.maxwin
+                        if self.sdata.users[uid] and self.sdata.users[uid].extrainfo then
+                            local extrainfo = cjson.decode(self.sdata.users[uid].extrainfo)
+                            if extrainfo then
+                                extrainfo["maxwin"] = r * maxwin
+                                self.sdata.users[uid].extrainfo = cjson.encode(extrainfo)
+                            end
+                        end
+                        log.info("idx(%s,%s) finish result %s,%s", self.id, self.mid, uid, r)
+                        if r > 0 then -- 玩家赢
+                            table.insert(winlist, uid)
+                        elseif r < 0 then -- 玩家输
+                            table.insert(loselist, uid)
+                        end
+                    end
+                end
+                log.info(
+                    "idx(%s,%s) ok %s winlist=%s,loselist=%s,robotlist=%s,res=%s",
+                    self.id,
+                    self.mid,
+                    tostring(ok),
+                    cjson.encode(winlist),
+                    cjson.encode(loselist),
+                    cjson.encode(robotlist),
+                    cjson.encode(res)
+                )
+
+                local winnerUID, loserUID = 0, 0
+                if #winlist > 0 then
+                    winnerUID = winlist[rand.rand_between(1, #winlist)]
+                end
+                if #loselist > 0 then
+                    loserUID = loselist[rand.rand_between(1, #loselist)]
+                end
+                self:dealCards(winnerUID, loserUID) -- 发牌
+                self:dealPreFlop()
+            end
+        )
+        timer.tick(self.timer, TimerID.TimerID_Result[1], TimerID.TimerID_Result[2], onResultTimeout, {self})
+        coroutine.resume(self.result_co)
+    else
+        self:dealCards(0, 0) -- 发牌
+        self:dealPreFlop()
+    end
+end
+
 function Room:dealPreFlop()
     local dealcard = {}
     for _, seat in ipairs(self.seats) do
@@ -2468,8 +2575,10 @@ function Room:dealPreFlop()
                     seat.handcards[1] = self.cfgcard:popHand()
                     seat.handcards[2] = self.cfgcard:popHand()
                 else
-                    seat.handcards[1] = self:getOneCard()
-                    seat.handcards[2] = self:getOneCard()
+                    -- seat.handcards[1] = self:getOneCard()
+                    -- seat.handcards[2] = self:getOneCard()
+                    seat.handcards[1] = self.seatCards[seat.sid][1] -- 发手牌
+                    seat.handcards[2] = self.seatCards[seat.sid][2]
                 end
 
                 local tmp = g.copy(dealcard)
@@ -2559,15 +2668,20 @@ function Room:dealPreFlop()
     end
 end
 
+-- 发3张公共牌
 function Room:dealFlop()
     if self.cfgcard_switch then
         self.boardcards[1] = self.cfgcard:popBoard()
         self.boardcards[2] = self.cfgcard:popBoard()
         self.boardcards[3] = self.cfgcard:popBoard()
     else
-        self.boardcards[1] = self:getOneCard()
-        self.boardcards[2] = self:getOneCard()
-        self.boardcards[3] = self:getOneCard()
+        -- self.boardcards[1] = self:getOneCard()  -- 公共牌
+        -- self.boardcards[2] = self:getOneCard()
+        -- self.boardcards[3] = self:getOneCard()
+
+        self.boardcards[1] = self.commonCards[1]
+        self.boardcards[2] = self.commonCards[2]
+        self.boardcards[3] = self.commonCards[3]
     end
 
     -- 记录公共牌
@@ -2651,11 +2765,13 @@ function Room:dealFlop()
     end
 end
 
+-- 发第4张公共牌
 function Room:dealTurn()
     if self.cfgcard_switch then
         self.boardcards[4] = self.cfgcard:popBoard()
     else
-        self.boardcards[4] = self:getOneCard()
+        --self.boardcards[4] = self:getOneCard() -- 第4张公共牌
+        self.boardcards[4] = self.commonCards[4] -- 第4张公共牌
     end
 
     -- 记录公共牌
@@ -2738,7 +2854,8 @@ function Room:dealRiver()
     if self.cfgcard_switch then
         self.boardcards[5] = self.cfgcard:popBoard()
     else
-        self.boardcards[5] = self:getOneCard()
+        --self.boardcards[5] = self:getOneCard()  -- 最后一张公共牌
+        self.boardcards[5] = self.commonCards[5] -- 最后一张公共牌
     end
 
     -- 记录公共牌
@@ -3708,6 +3825,20 @@ function Room:finish()
     self.reviewlogs:push(reviewlog)
     self.reviewlogitems = {}
     log.info("idx(%s,%s) reviewlog %s", self.id, self.mid, cjson.encode(reviewlog))
+
+    for _, seat in ipairs(self.seats) do
+        local user = self.users[seat.uid]
+        if user and seat.isplaying then
+            if not Utils:isRobot(user.api) and self.sdata.users[seat.uid].extrainfo then -- 盈利玩家
+                local extrainfo = cjson.decode(self.sdata.users[seat.uid].extrainfo)
+                if  extrainfo then
+                    extrainfo["totalmoney"] = (self:getUserMoney(seat.uid) or 0) + seat.chips -- 总金额                    
+                    log.debug("self.sdata.users[seat.uid].extrainfo uid=%s,totalmoney=%s", seat.uid, extrainfo["totalmoney"])
+                    self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
+                end
+            end
+        end
+    end
 
     if self:needLog() then
         self.statistic:appendLogs(self.sdata, self.logid)
@@ -5118,4 +5249,754 @@ function Room:userWalletResp(rev)
             Utils:transferRepay(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_RETURNCHIPS"), v)
         end
     end
+end
+
+-- 获取最大的牌及牌型
+-- 参数 commonCards: 公共牌(5张)
+-- 参数 handCards: 手牌(2张)
+-- 返回值: 返回最大的牌及最大牌牌型
+function Room:getMaxCards(commonCards, handCards)
+    local maxCards = {} -- 最大的牌
+    local maxCardsType = 1
+
+    texas.initialize(self.pokerhands)
+    texas.shortcard(self.pokerhands)
+    texas.sethands(self.pokerhands, handCards[1], handCards[2], commonCards)
+    maxCards = texas.checkhandstype(self.pokerhands) -- 选出最优的牌
+    maxCardsType = texas.gethandstype(self.pokerhands) -- 获取最大的牌的牌型
+
+    return maxCards, maxCardsType
+end
+
+-- 比较两手牌大小
+-- 返回值:  若A>B,则返回1; A==B,返回0; A<B,返回-1
+function Room:compare(handtypeA, cardsA, handtypeB, cardsB)
+    local result =
+        texas.comphandstype(
+        self.pokerhands,
+        handtypeA, -- 牌型
+        cardsA, -- 最好的5张牌
+        handtypeB,
+        cardsB
+    )
+
+    -- 1：A赢牌   0：和牌   -1：A输牌
+    return result
+end
+
+--[[
+-- 发牌
+-- 参数 winnerUID: 赢家UID   0表示没有确定赢家
+-- 参数 loserUID:  输家UID   0表示没有确定输家
+function Room:dealCards(winnerUID, loserUID)
+    local playerNum = self.conf and self.conf.maxuser or 10 -- 该局参与者人数
+    -- 每个参与者2张牌
+    -- 先洗牌，再发牌
+    -- self.cards = {}
+    -- for _, v in ipairs(default_poker_table) do
+    --     table.insert(self.cards, v)
+    -- end
+
+    local beginPos = 0
+    for k, seat in ipairs(self.seats) do
+        if seat.uid and seat.isplaying then
+            beginPos = k
+            break
+        end
+    end
+
+    self.pokeridx = 0
+    for i = 1, #default_poker_table - 1 do -- 洗牌
+        local s = rand.rand_between(i, #default_poker_table) -- 随机一个位置
+        self.cards[i], self.cards[s] = self.cards[s], self.cards[i]
+    end
+    self.commonCards = {self:getOneCard(), self:getOneCard(), self:getOneCard(), self:getOneCard(), self:getOneCard()} -- 公共牌(5张牌)
+    for i = 1, playerNum do
+        self.seatCards[i] = {self:getOneCard(), self:getOneCard()} -- 第i个座位的牌
+    end
+
+    local maxCardsType = 0
+    local maxCardsData = {} -- 最大的5张牌
+    local minCardsType = 0
+    local minCardsData = {}
+    local currentCardsData = {}
+
+    -- 比较获取最大的牌
+    maxCardsData, self.seatCardsType[beginPos] = self:getMaxCards(self.commonCards, self.seatCards[beginPos])
+    --maxCardsData, self.seatCardsType[1] = self:getMaxCards(self.commonCards, self.seatCards[1])
+    --maxCardsType = self.seatCardsType[1]
+    --minCardsType = self.seatCardsType[1]
+    maxCardsType = self.seatCardsType[beginPos]
+    minCardsType = self.seatCardsType[beginPos]
+    self.minCardsIndex = beginPos -- 最小牌所在位置
+    self.maxCardsIndex = beginPos -- 最大牌所在索引
+
+    minCardsData = g.copy(maxCardsData)
+    --for i = 2, playerNum do
+    for i = beginPos + 1, playerNum do
+        if self.seats[i] and self.seats[i].uid and self.seats[i].isplaying then
+            currentCardsData, self.seatCardsType[i] = self:getMaxCards(self.commonCards, self.seatCards[i])
+            if maxCardsType < self.seatCardsType[i] then
+                self.maxCardsIndex = i
+                maxCardsData = currentCardsData
+                maxCardsType = self.seatCardsType[i]
+            elseif maxCardsType == self.seatCardsType[i] then
+                local ret = self:compare(maxCardsType, maxCardsData, self.seatCardsType[i], currentCardsData)
+                if ret == -1 then
+                    self.maxCardsIndex = i
+                    maxCardsData = currentCardsData
+                    maxCardsType = self.seatCardsType[i]
+                elseif self.maxCardsIndex == self.minCardsIndex and ret == 1 then
+                    self.minCardsIndex = i
+                    minCardsData = currentCardsData
+                    minCardsType = self.seatCardsType[i]
+                end
+            else
+                if minCardsType > self.seatCardsType[i] then
+                    self.minCardsIndex = i
+                    minCardsData = currentCardsData
+                    minCardsType = self.seatCardsType[i]
+                elseif minCardsType == self.seatCardsType[i] then
+                    local ret = self:compare(minCardsType, minCardsData, self.seatCardsType[i], currentCardsData)
+                    if ret == 1 then
+                        self.minCardsIndex = i
+                        minCardsData = currentCardsData
+                        minCardsType = self.seatCardsType[i]
+                    end
+                end
+            end
+        end
+    end
+
+    if winnerUID and winnerUID ~= 0 then
+        local seatIndex = 0
+        for k, v in ipairs(self.seats) do
+            local user = self.users[v.uid]
+            if user and v.isplaying and v.uid == winnerUID then
+                seatIndex = k
+                break
+            end -- ~if
+        end -- ~for
+
+        if seatIndex ~= 0 and self.maxCardsIndex ~= seatIndex then
+            -- 换牌
+            local card1 = self.seatCards[seatIndex][1]
+            local card2 = self.seatCards[seatIndex][2]
+            self.seatCards[seatIndex][1] = self.seatCards[self.maxCardsIndex][1]
+            self.seatCards[seatIndex][2] = self.seatCards[self.maxCardsIndex][2]
+            self.seatCards[self.maxCardsIndex][1] = card1
+            self.seatCards[self.maxCardsIndex][2] = card2
+            if seatIndex == self.minCardsIndex then
+                self.minCardsIndex = self.maxCardsIndex
+            end
+            self.maxCardsIndex = seatIndex
+        end
+    end
+    if loserUID and loserUID ~= 0 then
+        local seatIndex = 0
+        for k, v in ipairs(self.seats) do
+            local user = self.users[v.uid]
+            if user and v.isplaying and v.uid == loserUID then
+                seatIndex = k
+                break
+            end -- ~if
+        end -- ~for
+        if seatIndex ~= 0 and self.minCardsIndex ~= seatIndex then
+            -- 换牌
+            local card1 = self.seatCards[seatIndex][1]
+            local card2 = self.seatCards[seatIndex][2]
+            self.seatCards[seatIndex][1] = self.seatCards[self.minCardsIndex][1]
+            self.seatCards[seatIndex][2] = self.seatCards[self.minCardsIndex][2]
+            self.seatCards[self.minCardsIndex][1] = card1
+            self.seatCards[self.minCardsIndex][2] = card2
+            if seatIndex == self.maxCardsIndex then
+                self.maxCardsIndex = self.minCardsIndex
+            end
+            self.minCardsIndex = seatIndex
+        end
+    end
+
+    -- 打印牌数据
+    log.debug(
+        "maxCardsIndex=%s,minCardsIndex=%s,commonCards=%s,beginPos=%s",
+        self.maxCardsIndex,
+        self.minCardsIndex,
+        string.format(
+            "0x%x,0x%x,0x%x,0x%x,0x%x",
+            self.commonCards[1],
+            self.commonCards[2],
+            self.commonCards[3],
+            self.commonCards[4],
+            self.commonCards[5]
+        ),
+        beginPos
+    )
+    for i = 1, playerNum do
+        log.debug(
+            "sid=%s, handcards=%s,cardsType=%s",
+            i,
+            string.format("0x%x,0x%x", self.seatCards[i][1], self.seatCards[i][2]),
+            self.seatCardsType[i] or 0
+        )
+    end
+end
+--]]
+
+
+
+-- 发牌
+-- 参数 winnerUID: 赢家UID   0表示没有确定赢家
+-- 参数 loserUID:  输家UID   0表示没有确定输家
+function Room:dealCards(winnerUID, loserUID)
+    --local playerNum = self.conf and self.conf.maxuser or 10 -- 该局参与者人数
+    -- 每个参与者2张牌
+    -- 先洗牌，再发牌
+    self.cards = {}
+    for _, v in ipairs(default_poker_table) do
+        table.insert(self.cards, v)
+    end
+
+    local beginPos = 0
+    for k = 1, #self.seats do
+        local seat = self.seats[k]
+        if seat and seat.uid and seat.isplaying then
+            beginPos = k
+            break
+        end
+    end
+
+    self.pokeridx = 0
+    for i = 1, #default_poker_table - 1 do -- 洗牌
+        local s = rand.rand_between(i, #default_poker_table) -- 随机一个位置
+        self.cards[i], self.cards[s] = self.cards[s], self.cards[i]
+    end
+    local strongHandcards = {}
+    strongHandcards[1] = self:getStrongHandcards()
+    strongHandcards[2] = self:getStrongHandcards()
+    if strongHandcards[1] then
+        log.debug(
+            "strongHandcards[1][1]=%s,strongHandcards[1][2]=%s",
+            string.format("0x%x", strongHandcards[1][1] or 0),
+            string.format("0x%x", strongHandcards[1][2] or 0)
+        )
+    end
+    if strongHandcards[2] then
+        log.debug(
+            "strongHandcards[2][1]=%s,strongHandcards[2][2]=%s",
+            string.format("0x%x", strongHandcards[2][1] or 0),
+            string.format("0x%x", strongHandcards[2][2] or 0)
+        )
+    end
+
+    if (winnerUID and winnerUID > 0) or (loserUID and loserUID > 0) then
+        -- 需要发2组大手牌
+        self.cards = self:removeCards(self.cards, strongHandcards[1])
+        for i = 1, 100 do
+            if self:inCards(self.cards, strongHandcards[2]) then
+                break
+            end
+            strongHandcards[2] = self:getStrongHandcards()
+        end
+        self.cards = self:removeCards(self.cards, strongHandcards[2])
+        log.debug("need deal strong cards")
+    end
+
+    local hasSendStrongNum = 0 --
+    for i = 1, #self.seats do
+        local seat = self.seats[i]
+        if seat and seat.uid and seat.isplaying then
+            if winnerUID and seat.uid == winnerUID and winnerUID > 0 then
+                hasSendStrongNum = hasSendStrongNum + 1
+                self.seatCards[i] = {strongHandcards[hasSendStrongNum][1], strongHandcards[hasSendStrongNum][2]}
+            elseif loserUID and seat.uid == loserUID and loserUID > 0 then
+                hasSendStrongNum = hasSendStrongNum + 1
+                self.seatCards[i] = {strongHandcards[hasSendStrongNum][1], strongHandcards[hasSendStrongNum][2]}
+            end
+        else
+            self.seatCards[i] = {}
+        end
+    end
+
+    for i = 1, #self.seats do
+        local seat = self.seats[i]
+        if seat and seat.uid and seat.isplaying then
+            if seat.uid ~= winnerUID and seat.uid ~= loserUID then
+                if hasSendStrongNum == 1 then
+                    hasSendStrongNum = hasSendStrongNum + 1
+                    self.seatCards[i] = {strongHandcards[hasSendStrongNum][1], strongHandcards[hasSendStrongNum][2]}
+                else
+                    self.seatCards[i] = {self:getOneCard(), self:getOneCard()} -- 第i个座位的牌
+                end
+            end
+        else
+            self.seatCards[i] = {}
+        end
+    end
+
+    local leftCards = self:getLeftCard() -- 剩余扑克牌
+
+    for j = 1, 100 do
+        -- 洗牌
+        for i = 1, 5 do
+            local randPos = rand.rand_between(1, #leftCards) -- 随机一个位置
+            leftCards[i], leftCards[randPos] = leftCards[randPos], leftCards[i]
+        end
+        -- 从剩余牌中随机获取5张公共牌
+
+        -- self.commonCards = {self:getOneCard(), self:getOneCard(), self:getOneCard(), self:getOneCard(), self:getOneCard()} -- 公共牌(5张牌)
+        self.commonCards = {leftCards[1], leftCards[2], leftCards[3], leftCards[4], leftCards[5]} -- 公共牌(5张牌)
+
+        local maxCardsType = 0
+        local maxCardsData = {} -- 最大的5张牌
+        local minCardsType = 0
+        local minCardsData = {}
+        local currentCardsData = {}
+
+        -- 比较获取最大的牌
+        maxCardsData, self.seatCardsType[beginPos] = self:getMaxCards(self.commonCards, self.seatCards[beginPos])
+        --maxCardsData, self.seatCardsType[1] = self:getMaxCards(self.commonCards, self.seatCards[1])
+        --maxCardsType = self.seatCardsType[1]
+        --minCardsType = self.seatCardsType[1]
+        maxCardsType = self.seatCardsType[beginPos]
+        minCardsType = self.seatCardsType[beginPos]
+        self.minCardsIndex = beginPos -- 最小牌所在位置
+        self.maxCardsIndex = beginPos -- 最大牌所在索引
+
+        minCardsData = g.copy(maxCardsData)
+        for i = beginPos + 1, #self.seats do
+            if self.seats[i] and self.seats[i].uid and self.seats[i].isplaying then
+                currentCardsData, self.seatCardsType[i] = self:getMaxCards(self.commonCards, self.seatCards[i])
+                if maxCardsType < self.seatCardsType[i] then
+                    self.maxCardsIndex = i
+                    maxCardsData = currentCardsData
+                    maxCardsType = self.seatCardsType[i]
+                elseif maxCardsType == self.seatCardsType[i] then
+                    local ret = self:compare(maxCardsType, maxCardsData, self.seatCardsType[i], currentCardsData)
+                    if ret == -1 then
+                        self.maxCardsIndex = i
+                        maxCardsData = currentCardsData
+                        maxCardsType = self.seatCardsType[i]
+                    elseif self.maxCardsIndex == self.minCardsIndex and ret == 1 then
+                        self.minCardsIndex = i
+                        minCardsData = currentCardsData
+                        minCardsType = self.seatCardsType[i]
+                    end
+                else
+                    if minCardsType > self.seatCardsType[i] then
+                        self.minCardsIndex = i
+                        minCardsData = currentCardsData
+                        minCardsType = self.seatCardsType[i]
+                    elseif minCardsType == self.seatCardsType[i] then
+                        local ret = self:compare(minCardsType, minCardsData, self.seatCardsType[i], currentCardsData)
+                        if ret == 1 then
+                            self.minCardsIndex = i
+                            minCardsData = currentCardsData
+                            minCardsType = self.seatCardsType[i]
+                        end
+                    end
+                end
+            end
+        end
+
+        -- if ((not winnerUID) or winnerUID == 0) and ((not loserUID) or loserUID == 0) then -- 没有输赢控制者
+        --     break
+        -- end
+
+        if winnerUID and winnerUID > 0 then
+            local seatIndex = 0
+            for k, v in ipairs(self.seats) do
+                local user = self.users[v.uid]
+                if user and v.isplaying and v.uid == winnerUID then
+                    seatIndex = k
+                    break
+                end -- ~if
+            end -- ~for
+            if seatIndex == self.maxCardsIndex then
+                break
+            elseif
+                self:getHandcardPower(self.seatCards[self.maxCardsIndex][1], self.seatCards[self.maxCardsIndex][2]) >= 7
+             then
+                self.seatCards[seatIndex][1], self.seatCards[self.maxCardsIndex][1] =
+                    self.seatCards[self.maxCardsIndex][1],
+                    self.seatCards[seatIndex][1]
+                self.seatCards[seatIndex][2], self.seatCards[self.maxCardsIndex][2] =
+                    self.seatCards[self.maxCardsIndex][2],
+                    self.seatCards[seatIndex][2]
+                break
+            end
+        elseif loserUID and loserUID > 0 then
+            local seatIndex = 0
+            for k, v in ipairs(self.seats) do
+                local user = self.users[v.uid]
+                if user and v.isplaying and v.uid == loserUID then
+                    seatIndex = k
+                    break
+                end -- ~if
+            end -- ~for
+            if seatIndex == self.minCardsIndex then
+                break
+            elseif
+                self:getHandcardPower(self.seatCards[self.minCardsIndex][1], self.seatCards[self.minCardsIndex][2]) >= 7
+             then
+                self.seatCards[seatIndex][1], self.seatCards[self.minCardsIndex][1] =
+                    self.seatCards[self.minCardsIndex][1],
+                    self.seatCards[seatIndex][1]
+                self.seatCards[seatIndex][2], self.seatCards[self.minCardsIndex][2] =
+                    self.seatCards[self.minCardsIndex][2],
+                    self.seatCards[seatIndex][2]
+                break
+            end
+            if seatIndex ~= self.maxCardsIndex then
+                break
+            end
+        else
+            break
+        end
+
+        --[[
+        if winnerUID and winnerUID ~= 0 then
+            local seatIndex = 0
+            for k, v in ipairs(self.seats) do
+                local user = self.users[v.uid]
+                if user and v.isplaying and v.uid == winnerUID then
+                    seatIndex = k
+                    break
+                end -- ~if
+            end -- ~for
+
+            if seatIndex == self.maxCardsIndex then
+                break
+            end
+            if seatIndex ~= 0 and self.maxCardsIndex ~= seatIndex then
+                -- -- 牌力判断
+                -- if self:getHandcardPower(self.seatCards[self.maxCardsIndex][1], self.seatCards[self.maxCardsIndex][2]) >= 7 then
+                -- end
+
+                -- 换牌
+                local card1 = self.seatCards[seatIndex][1]
+                local card2 = self.seatCards[seatIndex][2]
+                self.seatCards[seatIndex][1] = self.seatCards[self.maxCardsIndex][1]
+                self.seatCards[seatIndex][2] = self.seatCards[self.maxCardsIndex][2]
+                self.seatCards[self.maxCardsIndex][1] = card1
+                self.seatCards[self.maxCardsIndex][2] = card2
+                if seatIndex == self.minCardsIndex then
+                    self.minCardsIndex = self.maxCardsIndex
+                end
+                self.maxCardsIndex = seatIndex
+            end
+
+            -- 判断牌力值
+        end
+
+        if loserUID and loserUID ~= 0 then
+            local seatIndex = 0
+            for k, v in ipairs(self.seats) do
+                local user = self.users[v.uid]
+                if user and v.isplaying and v.uid == loserUID then
+                    seatIndex = k
+                    break
+                end -- ~if
+            end -- ~for
+            if seatIndex ~= 0 and self.minCardsIndex ~= seatIndex then
+                -- 换牌
+                local card1 = self.seatCards[seatIndex][1]
+                local card2 = self.seatCards[seatIndex][2]
+                self.seatCards[seatIndex][1] = self.seatCards[self.minCardsIndex][1]
+                self.seatCards[seatIndex][2] = self.seatCards[self.minCardsIndex][2]
+                self.seatCards[self.minCardsIndex][1] = card1
+                self.seatCards[self.minCardsIndex][2] = card2
+                if seatIndex == self.maxCardsIndex then
+                    self.maxCardsIndex = self.minCardsIndex
+                end
+                self.minCardsIndex = seatIndex
+            end
+        end
+
+        -- 检测最大玩家的手牌牌力是否>=6
+        if
+            winnerUID and winnerUID > 0 and
+                self:getHandcardPower(self.seatCards[self.maxCardsIndex][1], self.seatCards[self.maxCardsIndex][2]) >= 6
+         then
+            log.warn("find out maxCard winnerUID=%s", winnerUID)
+            break
+        end
+
+        if self:getHandcardPower(self.seatCards[self.minCardsIndex][1], self.seatCards[self.minCardsIndex][2]) >= 6 then
+            log.warn("find out minCard")
+            break
+        end
+
+        --]]
+    end -- ~for
+
+    -- 打印牌数据
+    log.debug(
+        "maxCardsIndex=%s,minCardsIndex=%s,commonCards=%s,beginPos=%s",
+        self.maxCardsIndex,
+        self.minCardsIndex,
+        string.format(
+            "0x%x,0x%x,0x%x,0x%x,0x%x",
+            self.commonCards[1],
+            self.commonCards[2],
+            self.commonCards[3],
+            self.commonCards[4],
+            self.commonCards[5]
+        ),
+        beginPos
+    )
+    for i = 1, #self.seats do
+        local seat = self.seats[i]
+        if seat and seat.uid and seat.isplaying then
+            log.debug(
+                "sid=%s, handcards=%s,cardsType=%s",
+                i,
+                string.format("0x%x,0x%x", self.seatCards[i][1], self.seatCards[i][2]),
+                self.seatCardsType[i] or 0
+            )
+        end
+    end
+end
+
+-- 根据手牌计算牌力 [0,9]
+function Room:getHandcardPower(card1, card2)
+    local MAX_HANDCARD_POWER = 9 -- 手牌最大牌力
+
+    local TexasHandCardPower = {
+        -- --2, 3, 4, 5, 6, 7, 8, 9, T, J, Q, K, A
+        -- {4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3}, --2
+        -- {0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3}, --3
+        -- {0, 0, 4, 2, 1, 0, 0, 0, 0, 0, 0, 0, 3}, --4
+        -- {0, 0, 2, 5, 2, 1, 0, 0, 0, 0, 0, 0, 3}, --5
+        -- {0, 0, 1, 2, 5, 2, 1, 0, 0, 0, 0, 0, 3}, --6
+        -- {0, 0, 0, 1, 2, 6, 2, 1, 1, 0, 0, 0, 3}, --7
+        -- {0, 0, 0, 1, 1, 2, 6, 2, 2, 0, 0, 1, 3}, --8
+        -- {0, 0, 0, 0, 0, 1, 2, 7, 3, 1, 1, 2, 3}, --9
+        -- {0, 0, 0, 0, 0, 1, 2, 3, 7, 3, 3, 4, 4}, --T
+        -- {0, 0, 0, 0, 0, 0, 0, 1, 3, 8, 3, 4, 5}, --J
+        -- {0, 0, 0, 0, 0, 0, 0, 1, 3, 3, 8, 5, 7}, --Q
+        -- {0, 0, 0, 0, 0, 0, 1, 2, 4, 4, 5, 9, 8}, --K
+        -- {3, 3, 3, 3, 3, 3, 3, 3, 4, 5, 7, 8, 9} --A
+
+        --2, 3, 4, 5, 6, 7, 8, 9, T, J, Q, K, A
+        {6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5}, --2
+        {0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5}, --3
+        {0, 0, 6, 5, 5, 0, 0, 0, 0, 0, 0, 0, 5}, --4
+        {0, 5, 5, 6, 5, 5, 0, 0, 0, 0, 0, 0, 5}, --5
+        {0, 0, 5, 5, 6, 5, 5, 0, 0, 0, 0, 0, 5}, --6
+        {0, 0, 0, 5, 5, 7, 5, 5, 5, 0, 0, 0, 5}, --7
+        {0, 0, 0, 0, 5, 5, 7, 5, 5, 5, 0, 0, 5}, --8
+        {0, 0, 0, 0, 0, 5, 5, 7, 5, 5, 5, 0, 5}, --9
+        {0, 0, 0, 0, 0, 5, 5, 5, 7, 5, 5, 5, 7}, --T
+        {0, 0, 0, 0, 0, 0, 5, 5, 5, 8, 6, 6, 7}, --J
+        {0, 0, 0, 0, 0, 0, 0, 5, 5, 6, 8, 7, 8}, --Q
+        {0, 0, 0, 0, 0, 0, 0, 0, 5, 6, 7, 8, 8}, --K
+        {5, 5, 5, 5, 5, 5, 5, 5, 7, 7, 8, 8, 8} --A
+    }
+
+    local hand_power = TexasHandCardPower[(card1 & 0xF) - 1][(card2 & 0xF) - 1] or 0
+    if hand_power < MAX_HANDCARD_POWER and (card1 & 0xF00) == (card2 & 0xF00) then
+        hand_power = hand_power + 1
+    end
+    return hand_power
+end
+
+-- 获取强力手牌
+function Room:getStrongHandcards()
+    local strongHandcards = {
+        -- 牌力为8的牌
+        -- 对A
+        {0x10E, 0x20E},
+        {0x10E, 0x30E},
+        {0x10E, 0x40E},
+        {0x20E, 0x30E},
+        {0x20E, 0x40E},
+        {0x30E, 0x40E},
+        -- 对K
+        {0x10D, 0x20D},
+        {0x10D, 0x30D},
+        {0x10D, 0x40D},
+        {0x20D, 0x30D},
+        {0x20D, 0x40D},
+        {0x30D, 0x40D},
+        -- 对Q
+        {0x10C, 0x20C},
+        {0x10C, 0x30C},
+        {0x10C, 0x40C},
+        {0x20C, 0x30C},
+        {0x20C, 0x40C},
+        {0x30C, 0x40C},
+        -- 对J
+        {0x10B, 0x20B},
+        {0x10B, 0x30B},
+        {0x10B, 0x40B},
+        {0x20B, 0x30B},
+        {0x20B, 0x40B},
+        {0x30B, 0x40B},
+        --AK
+        {0x10E, 0x10D},
+        {0x10E, 0x20D},
+        {0x10E, 0x30D},
+        {0x10E, 0x40D},
+        {0x20E, 0x10D},
+        {0x20E, 0x20D},
+        {0x20E, 0x30D},
+        {0x20E, 0x40D},
+        {0x30E, 0x10D},
+        {0x30E, 0x20D},
+        {0x30E, 0x30D},
+        {0x30E, 0x40D},
+        {0x40E, 0x10D},
+        {0x40E, 0x20D},
+        {0x40E, 0x30D},
+        {0x40E, 0x40D},
+        --AQ
+        {0x10E, 0x10C},
+        {0x10E, 0x20C},
+        {0x10E, 0x30C},
+        {0x10E, 0x40C},
+        {0x20E, 0x10C},
+        {0x20E, 0x20C},
+        {0x20E, 0x30C},
+        {0x20E, 0x40C},
+        {0x30E, 0x10C},
+        {0x30E, 0x20C},
+        {0x30E, 0x30C},
+        {0x30E, 0x40C},
+        {0x40E, 0x10C},
+        {0x40E, 0x20C},
+        {0x40E, 0x30C},
+        {0x40E, 0x40C},
+        -- 牌力为7的牌
+        -- AJ
+        {0x10E, 0x10B},
+        {0x10E, 0x20B},
+        {0x10E, 0x30B},
+        {0x10E, 0x40B},
+        {0x20E, 0x10B},
+        {0x20E, 0x20B},
+        {0x20E, 0x30B},
+        {0x20E, 0x40B},
+        {0x30E, 0x10B},
+        {0x30E, 0x20B},
+        {0x30E, 0x30B},
+        {0x30E, 0x40B},
+        {0x40E, 0x10B},
+        {0x40E, 0x20B},
+        {0x40E, 0x30B},
+        {0x40E, 0x40B},
+        --A10
+        {0x10E, 0x10A},
+        {0x10E, 0x20A},
+        {0x10E, 0x30A},
+        {0x10E, 0x40A},
+        {0x20E, 0x10A},
+        {0x20E, 0x20A},
+        {0x20E, 0x30A},
+        {0x20E, 0x40A},
+        {0x30E, 0x10A},
+        {0x30E, 0x20A},
+        {0x30E, 0x30A},
+        {0x30E, 0x40A},
+        {0x40E, 0x10A},
+        {0x40E, 0x20A},
+        {0x40E, 0x30A},
+        {0x40E, 0x40A},
+        --KQ
+        {0x10D, 0x10C},
+        {0x10D, 0x20C},
+        {0x10D, 0x30C},
+        {0x10D, 0x40C},
+        {0x20D, 0x10C},
+        {0x20D, 0x20C},
+        {0x20D, 0x30C},
+        {0x20D, 0x40C},
+        {0x30D, 0x10C},
+        {0x30D, 0x20C},
+        {0x30D, 0x30C},
+        {0x30D, 0x40C},
+        {0x40D, 0x10C},
+        {0x40D, 0x20C},
+        {0x40D, 0x30C},
+        {0x40D, 0x40C},
+        --KJ
+        {0x10D, 0x10B},
+        {0x20D, 0x20B},
+        {0x30D, 0x30B},
+        {0x40D, 0x40B},
+        --对10
+        {0x10A, 0x20A},
+        {0x10A, 0x30A},
+        {0x10A, 0x40A},
+        {0x20A, 0x30A},
+        {0x20A, 0x40A},
+        {0x30B, 0x40A},
+        --对9
+        {0x109, 0x209},
+        {0x109, 0x309},
+        {0x109, 0x409},
+        {0x209, 0x309},
+        {0x209, 0x409},
+        {0x309, 0x409},
+        --对8
+        {0x108, 0x208},
+        {0x108, 0x308},
+        {0x108, 0x408},
+        {0x208, 0x308},
+        {0x208, 0x408},
+        {0x308, 0x408},
+        --对7
+        {0x107, 0x207},
+        {0x107, 0x307},
+        {0x107, 0x407},
+        {0x207, 0x307},
+        {0x207, 0x407},
+        {0x307, 0x407}
+    }
+
+    local ret = {}
+    local index = rand.rand_between(1, #strongHandcards)
+    ret[1] = strongHandcards[index][1]
+    ret[2] = strongHandcards[index][2]
+    return ret
+end
+
+-- 移除指定牌
+-- 参数 cards: 从这些牌中移除
+-- 参数 removedCards: 待移除的牌
+function Room:removeCards(cards, removedCards)
+    local cardsNum = #cards -- 牌总张数
+    local removedCardsNum = #removedCards -- 要移除的牌张数
+
+    for i = 1, removedCardsNum, 1 do
+        local card = removedCards[i] -- 第i张要移除的牌
+        for j = 1, cardsNum, 1 do
+            if (cards[j] & 0xFFFF) == (card & 0xFFFF) then
+                cards[j] = cards[cardsNum]
+                cards[cardsNum] = nil
+                cardsNum = cardsNum - 1
+                break
+            end
+        end
+    end
+    return cards
+end
+
+-- 判断一组牌是否在另一组牌中
+function Room:inCards(cards, subcards)
+    local cardsNum = #cards -- 牌总张数
+    local subcardsNum = #subcards -- 少的牌张数
+    for i = 1, subcardsNum, 1 do
+        local card = subcards[i] -- 第i张要移除的牌
+        local hasFind = false
+        for j = 1, cardsNum, 1 do
+            if (cards[j] & 0xFFFF) == (card & 0xFFFF) then
+                hasFind = true
+                break
+            end
+        end
+        if not hasFind then
+            return false
+        end
+    end
+    return true
 end

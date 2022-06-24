@@ -1611,47 +1611,65 @@ function Room:ready()
     end
 end
 
+-- 发大牌
+-- 返回值： 返回要发的大牌
 function Room:dealStrongCards()
     log.debug("idx(%s,%s,%s) dealStrongCards", self.id, self.mid, tostring(self.logid))
     local handcards = {}
     local robot_handcards = {0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
-    local color = rand.rand_between(0, 3)
-    local count = rand.rand_between(1, 9)
-    for i = count, count + 4 do
-        table.insert(handcards, ((color + 1) << 8) | robot_handcards[i])
+    for j = 1, 10 do
+        local color = rand.rand_between(0, 3) -- 随机一个花色
+        local count = rand.rand_between(1, 9) -- 第一张牌位置[1,9]
+        for i = count, count + 4 do -- 发5张牌
+            table.insert(handcards, ((color + 1) << 8) | robot_handcards[i])
+        end
+        -- color = (color + 1) % 4
+        -- count = rand.rand_between(1, 9)
+        -- for i = count, count + 3 do
+        --     table.insert(handcards, ((color + 1) << 8) | robot_handcards[i])
+        -- end
+        -- 确保要发的牌都存在
+        if self.poker:inLeftCards(handcards) then
+            break
+        end
     end
-    -- color = (color + 1) % 4
-    -- count = rand.rand_between(1, 9)
-    -- for i = count, count + 3 do
-    --     table.insert(handcards, ((color + 1) << 8) | robot_handcards[i])
-    -- end
-    return self.poker:removes(handcards)
+    -- return self.poker:removes(handcards)
+    return self.poker:removeFromLeftCards(handcards)
 end
 
+-- 发小牌   有问题: 同一张牌是否发多次?
 function Room:dealWeakCards()
-    local robot_handcards = {0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
-    local color = rand.rand_between(0, 3)
-    local count = rand.rand_between(1, 13)
-    local delta = rand.rand_between(2, 3)
-    local c = 0
+    local robot_handcards = {0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e} -- 牌面值
+    local color = rand.rand_between(0, 3) -- 随机花色-1
+    local count = rand.rand_between(1, 13) -- 随机牌开始位置
+    local delta = rand.rand_between(2, 3) -- 步长
     local handcards = {}
-    while #handcards ~= #robot_handcards and c < 10 do
-        for i = 1, 4 do
-            count = rand.rand_between(1, 13)
-            color = (color + 1) % 4
-            for j = count, 13, delta do
-                table.insert(handcards, ((color + 1) << 8) | robot_handcards[j])
+    for times = 1, 20 do
+        local c = 0 -- while循环次数
+        handcards = {}
+        while #handcards ~= #robot_handcards and c < 10 do
+            for i = 1, 4 do -- 发4种花色
+                count = rand.rand_between(1, 13) -- 开始位置
+                color = (color + 1) % 4 -- 下一种花色-1
+                for j = count, 13, delta do -- 发一组相同花色但不相连的牌
+                    table.insert(handcards, ((color + 1) << 8) | robot_handcards[j])
+                    if #handcards == #robot_handcards then -- 如果已发出13张牌
+                        break
+                    end
+                end
                 if #handcards == #robot_handcards then
                     break
                 end
             end
-            if #handcards == #robot_handcards then
-                break
-            end
+            c = c + 1
         end
-        c = c + 1
+        -- 判断要发的牌是否在剩余牌中
+        if self.poker:inLeftCards(handcards) then
+            break
+        end
     end
-    return self.poker:removes(handcards)
+    -- return self.poker:removes(handcards)
+    return self.poker:removeFromLeftCards(handcards)
 end
 
 function Room:start()
@@ -1880,6 +1898,7 @@ function Room:chipin(uid, type, value)
 
     local function draw_func(seat, type, value)
         local reshuffle
+        seat.drawcard = seat.drawcard or 0
         if
             seat.chiptype == pb.enum_id("network.cmd.PBRummyChipinType", "PBRummyChipinType_DRAW1") or
                 seat.chiptype == pb.enum_id("network.cmd.PBRummyChipinType", "PBRummyChipinType_DRAW2") or
@@ -1948,6 +1967,7 @@ function Room:chipin(uid, type, value)
         return true
     end
 
+    -- 参数 value: 要丢弃的牌
     local function discard_or_finish_func(seat, type, value)
         if not seat.drawcard or seat.drawcard == 0 and not seat:isChipinTimeout() then
             log.error(
@@ -1959,13 +1979,18 @@ function Room:chipin(uid, type, value)
             )
             return false
         end
-        if seat.drawcard == value then
+        if seat.drawcard == value then   -- 如果刚摸到的牌与要打出的牌是同一张
         else
             local idx = seat:getIdxByCardValue(value)
             if idx > 0 then
                 local tmpcard = seat.handcards[idx]
                 seat.handcards[idx] = seat.drawcard
-                seat.drawcard = tmpcard
+                seat.drawcard = tmpcard or 0 -- 待修改
+                if not tmpcard then
+                    log.error("idx(%s,%s,%s) discard_or_finish_func() tmpcard==nil ",self.id,
+                    self.mid,
+                    tostring(self.logid))
+                end 
             else
                 log.error(
                     "idx(%s,%s,%s) discard_or_finish_func uid (%s,%s) not find a valid card %s",
@@ -2422,7 +2447,7 @@ function Room:dealHandCards()
                 for _, seat in ipairs(self.seats) do
                     local v = self.users[seat.uid]
                     if v and not Utils:isRobot(v.api) and seat.isplaying then
-                        table.insert(msg.data, {uid = seat.uid, chips = 20 * (self.conf.fee or 0), betchips = 0})
+                        table.insert(msg.data, {uid = seat.uid, chips = 0, betchips = 0})
                     end
                 end
                 log.info("idx(%s,%s) start result request %s", self.id, self.mid, cjson.encode(msg))
@@ -2474,35 +2499,6 @@ function Room:dealHandCards()
         timer.tick(self.timer, TimerID.TimerID_Result[1], TimerID.TimerID_Result[2], onResultTimeout, {self})
         coroutine.resume(self.result_co)
     else
-        for _, seat in ipairs(self.seats) do
-            local user = self.users[seat.uid]
-            if user then
-                if seat.isplaying then
-                    cfgcardidx = cfgcardidx + 1
-                    if self.config_switch and RUMMYCONF.CONFCARDS.groupcards[cfgcardidx] then
-                        for _, v in ipairs(RUMMYCONF.CONFCARDS.groupcards[cfgcardidx]) do
-                            for _, vv in ipairs(v) do
-                                table.insert(seat.handcards, vv)
-                            end
-                        end
-                        seat.groupcards = g.copy(RUMMYCONF.CONFCARDS.groupcards[cfgcardidx])
-                    else
-                        local pro = rand.rand_between(1, 10000)
-                        local robotconf = ROBOTAI_CONF[self.conf.robotid] or {}
-                        if Utils:isRobot(user.api) and pro <= (robotconf.firerate or 0) then
-                            seat.handcards = self:dealStrongCards()
-                            local leftcards = self.poker:getNCard(13 - #seat.handcards)
-                            for _, v in ipairs(leftcards) do
-                                table.insert(seat.handcards, v)
-                            end
-                        else
-                            seat.handcards = self.poker:getNCard(13)
-                        end
-                    end
-                    seat.groupcards = self.poker:group(seat.handcards)
-                end
-            end
-        end
         self:dealHandCardsCommon()
     end
 
@@ -2802,6 +2798,21 @@ function Room:finish()
 
     self.m_winner_sid = 0
     self.sdata.etime = self.endtime
+
+    for _, seat in ipairs(self.seats) do
+        local user = self.users[seat.uid]
+        if user and seat.isplaying then
+            if not Utils:isRobot(user.api) and self.sdata.users[seat.uid].extrainfo then -- 盈利玩家
+                local extrainfo = cjson.decode(self.sdata.users[seat.uid].extrainfo)
+                if  extrainfo then
+                    extrainfo["totalmoney"] = (self:getUserMoney(seat.uid) or 0) + seat.chips -- 总金额                    
+                    log.debug("self.sdata.users[seat.uid].extrainfo uid=%s,totalmoney=%s", seat.uid, extrainfo["totalmoney"])
+                    self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
+                end
+            end
+        end
+    end
+
     self.statistic:appendLogs(self.sdata, self.logid)
     timer.tick(self.timer, TimerID.TimerID_OnFinish[1], self.t_msec, onFinish, self)
 end
@@ -3172,8 +3183,36 @@ function Room:userTool(uid, linkid, rev)
         return
     end
     if self:getUserMoney(uid) < (self.conf and self.conf.toolcost or 0) then
-        log.info("idx(%s,%s,%s) user use tool: not enough money %s", self.id, self.mid, tostring(self.logid), uid)
-        handleFailed(1)
+        -- 余额不足时则只扣除筹码(如果筹码足够)
+        local leftChips = self.seats[rev.fromsid].chips - self.seats[rev.fromsid].roundmoney
+        if leftChips < (self.conf and self.conf.toolcost or 0) then -- 如果筹码不够
+            log.info("idx(%s,%s,%s) not enough money. uid=%s", self.id, self.mid, tostring(self.logid), uid)
+            handleFailed(1)
+        else            
+            log.info("idx(%s,%s,%s) userTool() enough chips %s", self.id, self.mid, tostring(self.logid), uid)
+            -- 筹码足够
+            self.seats[rev.fromsid].chips = self.seats[rev.fromsid].chips - (self.conf and self.conf.toolcost or 0)
+            pb.encode(
+                "network.cmd.PBGameNotifyTool_N",
+                {
+                    fromsid = rev.fromsid,
+                    tosid = rev.tosid,
+                    toolID = rev.toolID,
+                    seatMoney = self.seats[rev.fromsid].chips
+                },
+                function(pointer, length)
+                    self:sendCmdToPlayingUsers(
+                        pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                        pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_GameNotifyTool"),
+                        pointer,
+                        length
+                    )
+                end
+            )
+            -- 广播该座位信息(更新玩家身上筹码)
+            -- self:sendPosInfoToAll(self.seats[rev.fromsid])
+        end
+
         return
     end
 
@@ -3364,8 +3403,25 @@ function Room:userAddTime(uid, linkid, rev)
         return
     end
     if self:getUserMoney(uid) < (self.conf and self.conf.addtimecost[seat.addon_count + 1] or 0) then
-        log.info("idx(%s,%s,%s) user add time: not enough money %s", self.id, self.mid, tostring(self.logid), uid)
-        handleFailed(1)
+        -- 如果身上金额不足，则只扣除筹码
+        local leftChips = seat.chips - seat.roundmoney
+        -- 检测身上筹码是否足够
+        if leftChips < (self.conf and self.conf.addtimecost[seat.addon_count + 1] or 0) then
+            log.info("idx(%s,%s,%s) user add time: not enough money %s", self.id, self.mid, tostring(self.logid), uid)
+            handleFailed(1)
+        else
+            log.info("idx(%s,%s,%s) userAddTime() has enough chips %s", self.id, self.mid, tostring(self.logid), uid)
+
+            -- 如果有足够筹码，则扣除筹码
+            seat.chips = seat.chips - (self.conf and self.conf.addtimecost[seat.addon_count + 1] or 0)
+
+            seat.addon_time = seat.addon_time + (self.conf.addtime or 0)
+            seat.addon_count = seat.addon_count + 1
+            seat.total_time = seat:getChipinLeftTime() -- 本次操作剩余时长
+            self:sendPosInfoToAll(seat, pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_BETING"))
+            timer.cancel(self.timer, TimerID.TimerID_Betting[1])
+            timer.tick(self.timer, TimerID.TimerID_Betting[1], seat.total_time * 1000, onBettingTimer, self)
+        end
         return
     end
 

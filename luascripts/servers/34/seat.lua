@@ -78,6 +78,7 @@ function Seat:sit(uid, init_money, autobuy, totalbuyin)
     return true
 end
 
+-- 根据牌值获取牌索引(在手牌中的位置)
 function Seat:getIdxByCardValue(card)
     for k, v in ipairs(self.handcards) do
         if card == v then

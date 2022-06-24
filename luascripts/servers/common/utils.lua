@@ -7,9 +7,18 @@ local cjson = require("cjson")
 local g = require("luascripts/common/g")
 local rand = require(CLIBS["c_rand"])
 
+-- 房间状态
+local EnumRoomState = {
+    Check = 1,
+    Start = 2,
+    Betting = 3, -- 下注状态
+    Show = 4,
+    Finish = 5
+}
+
 --overwrite
 Utils = {}
-SLOT_INFO = {total_bets = {}, total_profit = {}}
+SLOT_INFO = { total_bets = {}, total_profit = {} }
 
 local USERINFO_SERVER_TYPE = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_UserInfo") << 16
 local MONEY_SERVER_TYPE = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Money") << 16
@@ -100,16 +109,17 @@ function Utils:postMail(acid, uids, mailtype, title, content)
         pb.encode(
             "network.inter.PBPostMailReq",
             {
-                acid = acid,
-                uid = uids,
-                type = mailtype,
-                title = title,
-                content = content
-            }
+            acid = acid,
+            uid = uids,
+            type = mailtype,
+            title = title,
+            content = content
+        }
         )
     )
 end
 
+-- 更新用户信息
 function Utils:updateUserInfo(msg)
     return net.forward(
         USERINFO_SERVER_TYPE,
@@ -119,9 +129,10 @@ function Utils:updateUserInfo(msg)
     )
 end
 
+-- 查询用户信息
 function Utils:queryUserInfo(msg)
     return net.forward(
-        MONEY_SERVER_TYPE,
+        MONEY_SERVER_TYPE, --发送消息给金币服
         pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Money"),
         pb.enum_id("network.inter.Game2MoneySubCmd", "Game2MoneySubCmd_QueryUserInfo"),
         pb.encode("network.inter.PBQueryUserInfo", msg)
@@ -146,12 +157,13 @@ function Utils:reportResult(msg)
     )
 end
 
-function Utils:updateMoney(msg)
+function Utils:updateMoney(msg, uid)
     return net.forward(
         MONEY_SERVER_TYPE,
         pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Money"),
         pb.enum_id("network.inter.Game2MoneySubCmd", "Game2MoneySubCmd_MoneyAtomUpdate"),
-        pb.encode("network.inter.PBMoneyAtomUpdate", msg)
+        pb.encode("network.inter.PBMoneyAtomUpdate", msg),
+        uid
     )
 end
 
@@ -204,6 +216,7 @@ function Utils:queryProfitResult(msg)
     )
 end
 
+-- 请求更新盈利信息(未调用该函数)
 function Utils:updateProfitInfo(msg)
     if #msg.data > 0 then
         return net.forward(
@@ -236,19 +249,19 @@ function Utils:walletRpc(uid, api, ip, money, reason, linkid, roomtype, roomid, 
     table.insert(
         money_update_msg.data,
         {
-            uid = uid,
-            money = updatemoney,
-            coin = updatecoin,
-            acid = linkid,
-            api = api or "",
-            notify = 1,
-            reason = reason,
-            ip = ip or "",
-            extrainfo = extrainfo and cjson.encode(extrainfo) or nil
-        }
+        uid = uid,
+        money = updatemoney,
+        coin = updatecoin,
+        acid = linkid,
+        api = api or "",
+        notify = 1,
+        reason = reason,
+        ip = ip or "",
+        extrainfo = extrainfo and cjson.encode(extrainfo) or nil
+    }
     )
     --log.dblog("idx(%s,%s) roomtype:%s,%s", roomid, matchid, tostring(roomtype), cjson.encode(money_update_msg))
-    Utils:updateMoney(money_update_msg)
+    Utils:updateMoney(money_update_msg, uid)
 end
 
 function Utils:balance(room, state)
@@ -290,13 +303,16 @@ function Utils:debit(room, reason)
                 room.id,
                 room.mid,
                 {
-                    api = "debit",
-                    sid = user.sid,
-                    userId = user.userId,
-                    transactionId = g.uuid(uid),
-                    roundId = room.logid,
-                    gameId = tostring(global.stype())
-                }
+                api = "debit",
+                sid = user.sid,
+                userId = user.userId,
+                transactionId = g.uuid(uid),
+                roundId = room.logid,
+                gameId = tostring(global.stype()),
+                bet = user.totalbet,
+                fee = user.totalfee,
+                time = room.start_time / 1000
+            }
             )
         end
     end
@@ -304,7 +320,7 @@ end
 
 function Utils:credit(room, reason)
     for uid, user in pairs(room.users) do
-        if user.totalbet and user.totalbet > 0 then
+        if not user.isdebiting and user.totalbet and user.totalbet > 0 then
             Utils:walletRpc(
                 uid,
                 user.api,
@@ -316,13 +332,17 @@ function Utils:credit(room, reason)
                 room.id,
                 room.mid,
                 {
-                    api = "credit",
-                    sid = user.sid,
-                    userId = user.userId,
-                    transactionId = g.uuid(uid),
-                    roundId = room.logid,
-                    gameId = tostring(global.stype())
-                }
+                api = "credit",
+                sid = user.sid,
+                userId = user.userId,
+                transactionId = g.uuid(uid),
+                roundId = room.logid,
+                gameId = tostring(global.stype()),
+                bet = user.totalbet,
+                fee = user.totalfee,
+                profit = user.totalpureprofit,
+                time = room.start_time / 1000
+            }
             )
         end
     end
@@ -343,77 +363,86 @@ function Utils:repay(room, reason)
                 room.id,
                 room.mid,
                 {
-                    api = "credit",
-                    sid = user.sid,
-                    userId = user.userId,
-                    transactionId = g.uuid(uid),
-                    roundId = room.logid,
-                    gameId = tostring(global.stype())
-                }
+                api = "cancel",
+                sid = user.sid,
+                userId = user.userId,
+                transactionId = g.uuid(uid),
+                roundId = room.logid,
+                gameId = tostring(global.stype())
+            }
             )
         end
     end
 end
 
 --该局结算后才debit成功、需要补回
-function Utils:debitRepay(room, reason, v, showstate)
-    local extrainfo = rawget(v, "extrainfo") and cjson.decode(v.extrainfo) or nil
-    if
-        extrainfo and extrainfo["api"] == "debit" and extrainfo["roundId"] and
-            (extrainfo["roundId"] ~= room.logid or room.state ~= showstate)
-     then
-        Utils:walletRpc(
-            v.uid,
-            v.api,
-            v.ip,
-            math.abs(rawget(v, "deltacoin") or 0),
-            reason,
-            v.acid,
-            room:conf().roomtype,
-            room.id,
-            room.mid,
-            {
-                api = "credit",
-                sid = extrainfo["sid"],
-                userId = extrainfo["userId"],
-                transactionId = g.uuid(v.uid),
-                roundId = extrainfo["roundId"],
-                gameId = tostring(global.stype())
-            }
-        )
+function Utils:debitRepay(room, reason, v, user, showstate)
+    if type(v) == "table" and rawget(v, "extrainfo") and v.extrainfo and v.extrainfo ~= "" then
+        local extrainfo = rawget(v, "extrainfo") and cjson.decode(v.extrainfo) or nil
+        if extrainfo and extrainfo["api"] == "debit" then
+            if user then
+                user.isdebiting = false
+            end
+            if extrainfo["roundId"] and (extrainfo["roundId"] ~= room.logid or room.state ~= showstate) then
+                if user then
+                    user.totalbet = 0
+                end
+                Utils:walletRpc(
+                    v.uid,
+                    v.api,
+                    v.ip,
+                    math.abs(rawget(v, "deltacoin") or 0),
+                    reason,
+                    v.acid,
+                    room:conf().roomtype,
+                    room.id,
+                    room.mid,
+                    {
+                    api = "cancel",
+                    sid = extrainfo["sid"],
+                    userId = extrainfo["userId"],
+                    transactionId = g.uuid(v.uid),
+                    roundId = extrainfo["roundId"],
+                    gameId = tostring(global.stype())
+                }
+                )
+            end
+        end
     end
 end
 
 --transfer成功后直接离开游戏、需要补回
 function Utils:transferRepay(room, reason, v)
-    local extrainfo = rawget(v, "extrainfo") and cjson.decode(v.extrainfo) or nil
-    if
-        v.code > 0 and (v.reason or 0) == pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_BUYINCHIPS") and
+    if type(v) == "table" and rawget(v, "extrainfo") and v.extrainfo and v.extrainfo ~= "" then
+        local extrainfo = rawget(v, "extrainfo") and cjson.decode(v.extrainfo) or nil
+        if v.code > 0 and (v.reason or 0) == pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_BUYINCHIPS") and
             extrainfo and
             extrainfo["api"] == "transfer" and
             extrainfo["roundId"]
-     then
-        Utils:walletRpc(
-            v.uid,
-            v.api,
-            v.ip,
-            math.abs(rawget(v, "deltacoin") or 0),
-            reason,
-            v.acid,
-            room.conf.roomtype,
-            room.id,
-            room.mid,
-            {
+        then
+            Utils:walletRpc(
+                v.uid,
+                v.api,
+                v.ip,
+                math.abs(rawget(v, "deltacoin") or 0),
+                reason,
+                v.acid,
+                room.conf.roomtype,
+                room.id,
+                room.mid,
+                {
                 api = "transfer",
                 sid = extrainfo["sid"],
                 userId = extrainfo["userId"],
                 transactionId = g.uuid(v.uid),
                 roundId = extrainfo["roundId"]
             }
-        )
+            )
+        end
     end
 end
 
+-- 判断是否有与该ip相同的玩家
 function Utils:hasIP(room, uid, ip, api)
     if room.conf.checkip and room.conf.checkip <= 0 then
         return false
@@ -435,6 +464,7 @@ end
 function Utils:mixtureTableInfo(uid, linkid, mid, roomid, serverid)
 end
 
+-- 参数 num: 要创建的机器人个数
 function Utils:notifyCreateRobot(roomtype, matchid, roomid, num)
     local msg = {
         srvid = global.sid(),
@@ -443,6 +473,7 @@ function Utils:notifyCreateRobot(roomtype, matchid, roomid, num)
         roomid = roomid,
         num = num
     }
+
     return net.forward(
         ROBOT_SERVER_TYPE,
         pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Robot"),
@@ -451,17 +482,40 @@ function Utils:notifyCreateRobot(roomtype, matchid, roomid, num)
     )
 end
 
+-- PVE游戏通知创建机器人  2022-3-9
+-- 参数 num: 要创建的机器人个数
+function Utils:notifyCreateRobot2(roomtype, matchid, roomid, num)
+    local msg = {
+        srvid = global.sid(),
+        roomtype = roomtype,
+        matchid = matchid,
+        roomid = roomid,
+        num = num
+    }
+    log.debug("DQW notifyCreateRobot2() roomid=%s, matchid=%s", roomid, matchid)
+
+    return net.forward(
+        ROBOT_SERVER_TYPE, --目的服务器ID
+        pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Robot"),
+        pb.enum_id("network.inter.Game2RobotSubCmdID", "Game2RobotSubCmdID_NotifyCreateRobot2"),
+        pb.encode("network.inter.PBGame2RobotNotifyCreateRobot", msg)
+    )
+end
+
+-- 反序列化  将字符串数据转为对象
 local function unserialize(key)
     local result = {}
-    local data = redis.get(5001, key)
+    local data = redis.get(5001, key) -- 获取key对应的数据
     if data then
-        data = cjson.decode(data)
-        for k, v in pairs(data) do
+        data = cjson.decode(data) -- 将json格式数据转换为对象
+        for k, v in pairs(data) do -- 遍历表数据
             result[tonumber(k)] = v
         end
     end
-    return result
+    return result -- 返回对象
 end
+
+--
 local function serialize(key, data)
     redis.set(5001, key, data, true)
 end
@@ -545,8 +599,7 @@ function Utils:getVirtualPlayerCount(room)
         end
     end
     if needUpdate then
-        room.rand_player_num =
-            rand.rand_between(room:conf().min_player_num * robotCount, room:conf().max_player_num * robotCount)
+        room.rand_player_num = rand.rand_between(room:conf().min_player_num * robotCount, room:conf().max_player_num * robotCount)
     end
     virtualPlayerCount = virtualPlayerCount + room.rand_player_num
 
@@ -575,15 +628,234 @@ function Utils:onStopServer(room)
     -- 通知所有玩家
     pb.encode(
         "network.cmd.PBKickOutNotify",
-        {msg = "!!KICKOUT!!"},
+        { msg = "!!KICKOUT!!" },
         function(pointer, length)
-            room:sendCmdToPlayingUsers(
-                pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Notify"),
-                pb.enum_id("network.cmd.PBNotifySubCmdID", "PBNotifySubCmdID_KickOutNotify"),
-                pointer,
-                length
-            )
-        end
+        room:sendCmdToPlayingUsers(
+            pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Notify"),
+            pb.enum_id("network.cmd.PBNotifySubCmdID", "PBNotifySubCmdID_KickOutNotify"),
+            pointer,
+            length
+        )
+    end
     )
     room:kickout()
+end
+
+-------------------------------------------------------
+-- 添加机器人
+-- 参数 room: 房间对象
+-- 参数 robotsInfo: 机器人信息
+function Utils:addRobot(room, robotsInfo)
+    room.users = room.users or {}
+    robotsInfo = robotsInfo or
+        {
+            { uid = 11, name = "zhang", api = "2001", nickurl = "p_13" },
+            { uid = 22, name = "liu", api = "2001", nickurl = "p_12" },
+            { uid = 33, name = "T555", api = "2001", nickurl = "p_11" },
+            { uid = 44, name = "AJ", api = "2001", nickurl = "p_11" },
+            { uid = 55, name = "Qing", api = "2001", nickurl = "p_10" },
+            { uid = 66, name = "Jimmy", api = "2001", nickurl = "p_10" },
+            { uid = 77, name = "T99", api = "2001", nickurl = "p_10" },
+            { uid = 88, name = "T100", api = "2001", nickurl = "p_10" }
+        }
+    if robotsInfo and type(robotsInfo) == "table" then -- 确保是表类型
+        for i = 1, #robotsInfo do
+            if not robotsInfo[i] then
+                break
+            end
+            local uid = robotsInfo[i].uid
+            -- 查看该玩家是否已在玩家列表中
+            if uid and not room.users[uid] then -- 如果未在玩家列表中
+                room.users[uid] = {}
+                room.users[uid].uid = uid
+                room.users[uid].linkid = nil -- 手动增加的机器人将该值设置为nil
+                -- local user = room.users[robotsInfo[i].uid]
+                -- user.uid = robotsInfo[i].uid
+                room.users[uid].api = robotsInfo[i].api or "2001"
+
+                local balance                       = 1000000 + rand.rand_between(2000, 1000000) -- 随机剩余金额
+                room.users[uid].money               = balance -- 金币
+                room.users[uid].coin                = balance -- 金豆
+                room.users[uid].diamond             = balance --
+                room.users[uid].playerinfo          = room.users[uid].playerinfo or {}
+                room.users[uid].playerinfo.balance  = balance
+                room.users[uid].playerinfo.nickname = robotsInfo[i].name or ""
+                room.users[uid].playerinfo.username = robotsInfo[i].name or ""
+                room.users[uid].playerinfo.nickurl  = robotsInfo[i].nickurl or "p_13"
+                --room.users[uid].playerinfo.currency
+                room.users[uid].playerinfo.extra    = {}
+                room.users[uid].createtime          = global.ctsec() -- 创建时刻(秒)
+                room.users[uid].lifetime            = rand.rand_between(600, 6000) -- 生存时间长度(秒)
+                --room.users[uid].playerinfo.extra.ip
+                --room.users[uid].playerinfo.extra.api
+            end
+        end
+    end
+end
+
+-- 根据概率分布信息获取索引值(值越大，出现的概率越大) 参考：getProbabilityIdx
+function Utils:getIndexByProb(prob)
+    if type(prob) ~= "table" then
+        return 1
+    end
+    local num = #prob
+    local totalValue = 0
+    for i = 1, num do
+        totalValue = totalValue + prob[i]
+    end
+    totalValue = math.floor(totalValue)
+    if totalValue <= 0 then
+        log.debug("DQW getIdxByProb() totalValue <=0")
+        return 1
+    end
+    local r = rand.rand_between(1, totalValue, 3) -- 获取随机值
+    for k, v in ipairs(prob) do
+        if r <= v then
+            return k
+        end
+        r = r - v
+    end
+    return 1
+end
+
+-- 随机获取下注筹码
+function Utils:getBetChip(room)
+    local confInfo = room:conf()
+    if confInfo then
+        if confInfo.chips and #confInfo.chips > 0 then
+            if not confInfo.robotBetChipProb then
+                confInfo.robotBetChipProb = { 5000, 2500, 1250, 1000, 600, 400, 200, 80, 20 } -- 机器人下注筹码概率
+                log.debug("DQW getBetChip() reset confInfo.robotBetChipProb")
+            end
+            -- return confInfo.chips[self:getIdxByProb(confInfo.chips)]
+            local chip = confInfo.chips[self:getIndexByProb(confInfo.robotBetChipProb)]
+            if chip then
+                return chip
+            end
+        end
+    end
+    return 2000
+end
+
+-- 随机获取下注区域
+function Utils:getBetArea(room)
+    local confInfo = room:conf()
+    if confInfo then
+        if confInfo.betarea and #confInfo.betarea > 0 then
+            if not confInfo.robotBetAreaProb then
+                confInfo.robotBetAreaProb = {} -- 机器人下注区域概率
+                local total = 0
+                for i = 1, #confInfo.betarea do
+                    if type(confInfo.betarea[i]) == "table" and confInfo.betarea[i][1] then
+                        total = total + confInfo.betarea[i][1]
+                    end
+                end
+                total = total * 100
+                for i = 1, #confInfo.betarea do
+                    if type(confInfo.betarea[i]) == "table" and confInfo.betarea[i][1] then
+                        confInfo.robotBetAreaProb[i] = total / confInfo.betarea[i][1]
+                    end
+                end
+                log.debug("DQW getBetArea() reset confInfo.robotBetAreaProb")
+            end
+
+            --return rand.rand_between(1, #confInfo.betarea)
+            return self:getIndexByProb(confInfo.robotBetAreaProb)
+        end
+    end
+    return 1 -- 默认是第一个下注区
+end
+
+-- 参数 room: 房间对象
+-- 参数 current_time: 当前时刻
+function Utils:checkCreateRobot(room, current_time)
+    if room.createRobotTimeInterval <= current_time - room.lastCreateRobotTime then
+        room.lastCreateRobotTime = current_time -- 上次创建机器人时刻
+        if room.createRobotTimeInterval < 100 then
+            room.createRobotTimeInterval = 2 * room.createRobotTimeInterval
+        end
+        if room and type(room.conf) == "function" then
+            local config = room:conf()
+            if config then --
+                -- 检测机器人个数
+                if type(room.count) == "function" then
+                    local allPlayerNum, robotNum = room:count()
+                    if allPlayerNum and robotNum and room.id and room.mid then
+                        log.debug("idx(%s,%s) notify create robot %s, %s", room.id, room.mid, allPlayerNum, robotNum)
+                        if robotNum < 30 then -- 如果机器人人数不足30人
+                            -- Utils:notifyCreateRobot(self:conf().roomtype, self.mid, self.id, 9 - robotNum) -- 动态创建机器人 old
+                            local createRobotNum = 30 - robotNum
+                            if createRobotNum > 10 then
+                                createRobotNum = 10 -- 每次最多创建10个机器人
+                            end
+                            if config.roomtype and room.mid and room.id then
+                                self:notifyCreateRobot2(config.roomtype, room.mid, room.id, createRobotNum) -- 动态创建机器人
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- 机器人下注
+function Utils:robotBet(room)
+    local confInfo = room:conf()
+
+    if room.state == EnumRoomState.Betting then -- 如果是在下注状态
+        -- 遍历所有机器人
+        for uid, user in pairs(room.users) do
+            if user and not user.linkid then
+                -- 获取随机值
+                local randValue = rand.rand_between(0, 10000)
+                if randValue < 1000 then -- 10%的概率下注
+                    local betInfo = { idx = {}, data = {} } -- 下注信息
+                    betInfo.idx.roomid = room.id
+                    betInfo.idx.matchid = room.mid
+                    betInfo.data.uid = uid -- 玩家ID
+                    betInfo.data.areabet = {} -- 下注区域信息
+                    betInfo.data.areabet[1] = {}
+                    betInfo.data.areabet[1].bettype = self:getBetArea(room) -- 下注区域
+                    betInfo.data.areabet[1].betvalue = self:getBetChip(room) --下注金额
+
+                    room:userBet(uid, nil, betInfo)
+                end
+            end
+        end
+    end
+end
+
+--[[
+function Utils:requestJackpot(msg)
+    return net.forward(
+        STATISTIC_SERVER_TYPE,
+        pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Statistic"),
+        pb.enum_id("network.inter.Game2StatisticSubCmd", "Game2StatisticSubCmd_JackpotReqResp"),
+        pb.encode("network.inter.PBJackpotReqResp", msg)
+    )
+end
+
+]]
+-- 请求获取玩家已玩指定游戏局数  参考requestJackpot(.)
+function Utils:queryPlayHand(uid, gameID, matchID, roomID, roomType)
+    local msg = { uid = uid, matchid = matchID, roomid = roomID, roomtype = roomType, gameid = gameID }
+    return net.forward(
+        STATISTIC_SERVER_TYPE,
+        pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Statistic"),
+        pb.enum_id("network.inter.Game2StatisticSubCmd", "Game2StatisticSubCmd_PlayHandReqResp"),
+        pb.encode("network.inter.PBPlayHandReqResp", msg)
+    )
+end
+
+-- 请求获取玩家已充值信息
+function Utils:queryChargeInfo(userID, gameID, matchID, roomID)
+    local msg = { uid = userID, matchid = matchID, roomid = roomID, gameid = gameID }
+
+    return net.forward(
+        USERINFO_SERVER_TYPE,
+        pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2UserInfo"),
+        pb.enum_id("network.inter.Game2UserInfoSubCmd", "Game2UserInfoSubCmd_QueryChargeInfo"),
+        pb.encode("network.inter.Game2UserQueryChargeInfo", msg)
+    )
 end

@@ -2981,6 +2981,19 @@ function Room:finish()
     self.reviewlogitems = {}
     log.info("idx(%s,%s) reviewlog %s", self.id, self.mid, cjson.encode(reviewlog))
 
+    for _, seat in ipairs(self.seats) do
+        local user = self.users[seat.uid]
+        if user and seat.isplaying then
+            if not Utils:isRobot(user.api) and self.sdata.users[seat.uid].extrainfo then -- 盈利玩家
+                local extrainfo = cjson.decode(self.sdata.users[seat.uid].extrainfo)
+                if  extrainfo then
+                    extrainfo["totalmoney"] = (self:getUserMoney(seat.uid) or 0) + seat.chips -- 总金额                    
+                    log.debug("self.sdata.users[seat.uid].extrainfo uid=%s,totalmoney=%s", seat.uid, extrainfo["totalmoney"])
+                    self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
+                end
+            end
+        end
+    end
     if self:needLog() then
         self.statistic:appendLogs(self.sdata, self.logid)
     end

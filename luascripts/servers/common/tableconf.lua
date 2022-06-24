@@ -28,6 +28,25 @@ local function loadServerListXml()
 end
 loadServerListXml()
 
+-- load control.xml
+CONTROL_CONF = {}
+local function loadControlXml()
+    local doc = XML.createdoc()
+    if XML.load(doc, "Config/Game/control.xml") then
+        local root = XML.rootelement(doc, "CONTROL")
+        local game = XML.firstchild(root, "info")
+        while game do
+            CONTROL_CONF.control_type = XML.attribute(game, "control_type")
+            local oldgame = game
+            game = XML.nextsibling(game)
+            XML.destroyelement(oldgame)
+        end
+    end
+    XML.destroydoc(doc)
+end
+loadControlXml()
+log.info("load control.xml: %s", cjson.encode(CONTROL_CONF))
+
 --load robotai.xml
 ROBOTAI_CONF = {}
 local function loadRobotAiXml()
@@ -105,8 +124,8 @@ local function loadTableListXml()
         local root = XML.rootelement(doc, "TLIST")
         local game = XML.firstchild(root, "game")
         while game do
-            if XML.intattribute(game, "gameid") == global.stype() then
-                local tb = XML.firstchild(game, "table")
+            if XML.intattribute(game, "gameid") == global.stype() then  -- 获取游戏ID，并与当前游戏ID比较
+                local tb = XML.firstchild(game, "table")  
                 while tb do
                     table.insert(
                         TABLECONF,
@@ -118,7 +137,7 @@ local function loadTableListXml()
                             serverid = XML.intattribute(game, "serverid"),
                             mintable = XML.intattribute(tb, "mintable"),
                             maxtable = XML.intattribute(tb, "maxtable"),
-                            tag = XML.intattribute(tb, "tag"),
+                            tag = XML.intattribute(tb, "tag"),  -- (房间等级标志：1-低级场 2-中级场 3-高级场)
                             sb = XML.intattribute(tb, "sb"),
                             ante = XML.intattribute(tb, "ante"),
                             minchip = XML.intattribute(tb, "minchips"),
@@ -126,7 +145,7 @@ local function loadTableListXml()
                             toolcost = math.floor(0.1 * 2 * XML.intattribute(tb, "sb")), --XML.intattribute(tb, 'toolcost'),
                             addtime = XML.intattribute(tb, "addtime"),
                             --addtimecost       = g.at2it(g.split(XML.attribute(tb, 'addtimecost'), ';')),
-                            maxuser = XML.intattribute(tb, "maxuser"),
+                            maxuser = XML.intattribute(tb, "maxuser"),   -- 每桌最大玩家数
                             referrerbb = XML.intattribute(tb, "referrerbb"),
                             minbuyinbb = XML.intattribute(tb, "minbuyinbb"),
                             maxbuyinbb = XML.intattribute(tb, "maxbuyinbb"),
@@ -146,7 +165,8 @@ local function loadTableListXml()
                                 XML.intattribute(tb, "feehandupper"),
                             checkip = XML.intattribute(tb, "checkip"),
                             maxinto = XML.intattribute(tb, "maxinto") <= 0 and 0xFFFFFFFFFF or
-                                XML.intattribute(tb, "maxinto")
+                                XML.intattribute(tb, "maxinto"),
+                            special = XML.intattribute(tb, "special") or 0  -- 新手专场
                         }
                     )
                     assert(TABLECONF[#TABLECONF].sb >= TABLECONF[#TABLECONF].minchip)
@@ -169,6 +189,17 @@ local function loadTableListXml()
                     if XML.attribute(tb, "single_profit_switch") then
                         TABLECONF[#TABLECONF].single_profit_switch = true
                     end
+                    if CONTROL_CONF and CONTROL_CONF.control_type then
+                        log.debug("CONTROL_CONF.control_type=%s", CONTROL_CONF.control_type)
+                        if tonumber(CONTROL_CONF.control_type) == 1 then -- 单人控制
+                            TABLECONF[#TABLECONF].single_profit_switch = true
+                            TABLECONF[#TABLECONF].global_profit_switch = false
+                        elseif tonumber(CONTROL_CONF.control_type) == 2 then -- 全局控制
+                            TABLECONF[#TABLECONF].single_profit_switch = false
+                            TABLECONF[#TABLECONF].global_profit_switch = true
+                        end
+                    end
+
                     TABLECONF[#TABLECONF].fee = math.floor(TABLECONF[#TABLECONF].fee * TABLECONF[#TABLECONF].sb)
                     TABLECONF[#TABLECONF].maxinto = math.floor(TABLECONF[#TABLECONF].maxinto * TABLECONF[#TABLECONF].sb)
 
@@ -265,6 +296,20 @@ local function loadMiniGameXml()
                 MINIGAME_CONF[#MINIGAME_CONF].single_profit_switch = true
                 MINIGAME_CONF[#MINIGAME_CONF].global_profit_switch = false
             end
+            -- 2022-4-12 暂时注释
+            if CONTROL_CONF and CONTROL_CONF.control_type then
+                if tonumber(CONTROL_CONF.control_type) == 1 then  -- 单人控制
+                    MINIGAME_CONF[#MINIGAME_CONF].single_profit_switch = true
+                    MINIGAME_CONF[#MINIGAME_CONF].global_profit_switch = false                    
+                elseif tonumber( CONTROL_CONF.control_type) == 2 then
+                    MINIGAME_CONF[#MINIGAME_CONF].single_profit_switch = false
+                    MINIGAME_CONF[#MINIGAME_CONF].global_profit_switch = true
+                else
+                    MINIGAME_CONF[#MINIGAME_CONF].single_profit_switch = false
+                    MINIGAME_CONF[#MINIGAME_CONF].global_profit_switch = false
+                end
+                log.debug("load loadMiniGameXml:MINIGAME_CONF[#MINIGAME_CONF].single_profit_switch=%s,global_profit_switch=%s,control_type=%s", tostring(MINIGAME_CONF[#MINIGAME_CONF].single_profit_switch),tostring(MINIGAME_CONF[#MINIGAME_CONF].global_profit_switch), CONTROL_CONF.control_type)
+            end
 
             if XML.attribute(tb, "min_player_num") then
                 MINIGAME_CONF[#MINIGAME_CONF].min_player_num = XML.intattribute(tb, "min_player_num")
@@ -296,7 +341,7 @@ local function loadMiniGameXml()
     XML.destroydoc(doc)
 end
 
-local MINI_GAME_STYPE = {31, 32, 35, 38, 42, 43}
+local MINI_GAME_STYPE = {31, 32, 35, 38, 42, 43, 45}
 if g.isInTable(MINI_GAME_STYPE, global.stype()) then
     loadMiniGameXml()
     log.info(cjson.encode(MINIGAME_CONF))

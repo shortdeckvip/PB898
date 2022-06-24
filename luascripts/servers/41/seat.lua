@@ -25,6 +25,7 @@ function Seat:init(t, sid)
     self.chips = 0 -- 剩余筹码数
     self.last_chips = 0 -- 剩余筹码数
     self.roundmoney = 0 -- 一轮下注筹码值
+    self.totalChipin = 0
     self.money = 0 -- 一局总消耗筹码数
     self.chipinnum = 0 -- 上一轮下注筹码值
     self.chiptype = pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_NULL") -- 下注操作类型
@@ -169,6 +170,7 @@ function Seat:chipin(type, money)
     self.chiptype = type
     self.chipinnum = money
     self.roundmoney = self.roundmoney + money
+    self.totalChipin = self.totalChipin + money
     if type ~= pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_CHECK") then
         self.addon_time = 0
         self.total_time = self.table.bettingtime
