@@ -32,6 +32,8 @@ XGame_997/LuaServer/LuaServer -l 4 -r 1835011  -g 6+,beanhigh &
 XGame_997/LuaServer/LuaServer -l 4 -r 2031617  -g Cowboy &
 XGame_997/LuaServer/LuaServer -l 4 -r 2097153  -g DT &
 XGame_997/LuaServer/LuaServer -l 4 -r 2293761 -g andarbahar &
+XGame_997/LuaServer/LuaServer -l 4 -r 2752513 -g TPBet &
+XGame_997/LuaServer/LuaServer -l 4 -r 2949121 -g 45dice &
 
 XGame_997/LuaServer/LuaServer -l 4 -r 2228225 -g 34Rummy,low &
 XGame_997/LuaServer/LuaServer -l 4 -r 2228226 -g 34Rummy,mid &
