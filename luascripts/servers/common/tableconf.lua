@@ -341,7 +341,7 @@ local function loadMiniGameXml()
     XML.destroydoc(doc)
 end
 
-local MINI_GAME_STYPE = {31, 32, 35, 38, 42, 43, 45}
+local MINI_GAME_STYPE = {31, 32, 35, 38, 42, 43, 45, 47, 48}
 if g.isInTable(MINI_GAME_STYPE, global.stype()) then
     loadMiniGameXml()
     log.info(cjson.encode(MINIGAME_CONF))

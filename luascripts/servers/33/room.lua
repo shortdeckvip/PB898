@@ -2972,7 +2972,11 @@ function Room:dealHandCards()
         -- elseif loserUID > 0 then
         --     self:dealSpecialCards2(seatcards, nil, loserUID) -- 发牌,控制玩家输赢
         --self:dealSpecialCards(seatcards) -- 发特殊牌
-        self:dealSpecialCards2(seatcards, nil, winnerUID) -- 发牌,控制玩家输赢
+        if rand.rand_between(1, 100) < 50 then
+            self:dealSpecialCards2(seatcards, nil, winnerUID) -- 发牌,控制玩家输赢
+        else
+            self:dealSpecialCards2(seatcards, winnerUID, nil) -- 发牌,控制玩家输赢
+        end
     elseif (self.conf.single_profit_switch and hasplayer) or winnerUID > 0 or loserUID > 0 then -- 单个人控制 且 有真实玩家下注了
         self.result_co =
             coroutine.create(

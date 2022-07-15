@@ -1,5 +1,5 @@
 
-ÓL
+çM
 texas.protonetwork.cmdcommon.proto"û
 PBTexasSeat+
 seat (2.network.cmd.PBSeatInfoRseat
@@ -224,10 +224,11 @@ smallBlind
 card1 (Rcard1
 card2 (Rcard2"F
 PBTexasDealCard3
-cards (2.network.cmd.PBTexasHandCardsRcards"m
+cards (2.network.cmd.PBTexasHandCardsRcards"ã
 PBTexasDealCardOnlyRobot3
 cards (2.network.cmd.PBTexasHandCardsRcards
-	leftcards (R	leftcards"Z
+	leftcards (R	leftcards
+	isControl (R	isControl"Z
 PBTexasDealPublicCards
 cards (Rcards
 state (Rstate

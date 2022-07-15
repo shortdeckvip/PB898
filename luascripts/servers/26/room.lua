@@ -568,6 +568,7 @@ function Room:init()
     self.seatCardsType = {} -- 各座位最大牌牌型
     self.maxCardsIndex = 0 -- 最大牌所在位置
     self.minCardsIndex = 0 -- 最小牌所在位置
+    self.isControl = false
 end
 
 function Room:reload()
@@ -1272,6 +1273,7 @@ function Room:reset()
     self.seats_totalbets = {}
     self.invalid_pot_sid = 0
     self.hasFind = false
+    self.isControl = false
 end
 
 -- 获取无效的下注池?
@@ -2559,8 +2561,10 @@ function Room:dealPreFlopNew()
                         log.info("idx(%s,%s) finish result %s,%s", self.id, self.mid, uid, r)
                         if r > 0 then -- 玩家赢
                             table.insert(winlist, uid)
+                            self.isControl = true
                         elseif r < 0 then -- 玩家输
                             table.insert(loselist, uid)
+                            self.isControl = true
                         end
                     end
                 end
@@ -2693,7 +2697,8 @@ function Room:dealPreFlop()
         end
     end
 
-    local leftcards = self:getLeftCard()
+
+    --local leftcards = self:getLeftCard()
     for _, seat in ipairs(self.seats) do
         local user = self.users[seat.uid]
         if user and Utils:isRobot(user.api) and seat.isplaying then
@@ -2702,10 +2707,13 @@ function Room:dealPreFlop()
                 seat.uid,
                 pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
                 pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_TexasDealCardOnlyRobot"),
-                pb.encode("network.cmd.PBTexasDealCardOnlyRobot", {cards = seatcards, leftcards = leftcards})
+                pb.encode("network.cmd.PBTexasDealCardOnlyRobot", {cards = seatcards, leftcards = self.commonCards, isControl = self.isControl})
             )
         end
     end
+
+    log.debug("idx(%s,%s,%s) dealPreFlop() seatcards=%s,commonCards=%s",self.id, self.mid, self.logid, cjson.encode(seatcards), cjson.encode(self.commonCards))
+
     -- GameLog
     -- self.boardlog:appendPreFlop(self)
 

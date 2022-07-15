@@ -1,5 +1,5 @@
 
-˝
+ì
 	pve.protonetwork.cmdcommon.proto"ê
 PBPveNotifyStart_N
 leftTime (RleftTime
@@ -29,10 +29,11 @@
 PBPveTypeStatisticData
 type (Rtype
 hitcount (Rhitcount
-lasthit (Rlasthit"L
+lasthit (Rlasthit"b
 PBPveLogData
 wintype (Rwintype"
-winpokertype (Rwinpokertype"÷
+winpokertype (Rwinpokertype
+cards (Rcards"÷
 PBPveNotifyShow_N
 cardsNum (RcardsNum
 cardsA (RcardsA

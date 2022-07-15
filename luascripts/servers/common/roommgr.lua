@@ -65,12 +65,12 @@ function RoomMgr:getMiniEmptyRoom(uid, ip, api)
     local conf = self.conf -- 该级别房间的配置信息
     local room
     local mini_id = 0xFFFFFFFF
-    local emptynum = 1
+    local emptynum = 1  -- 是否是空房间(没有真人的房间)
     if not Utils:isRobot(api) then
         emptynum = 0
     end
     for _, v in pairs(self.mgr) do
-        local empty = conf.maxuser - v:count()
+        local empty = conf.maxuser - v:count()  -- 空座位数
         if empty > emptynum and not Utils:hasIP(v, uid, ip, api) then -- 如果v房间还有空座位
             if empty < mini_id then
                 mini_id = empty -- 保存最小的房间ID
@@ -166,7 +166,7 @@ function RoomMgr:shrinkRoom()
     end
     for k, v in pairs(self.mgr) do
         roomcnt = roomcnt + 1
-        log.debug("idx(%s,%s,%s) usercount %s", v.id, self.mid, tostring(self.logid), g.count(v.users))
+        log.debug("idx(%s,%s,%s) usercount %s", v.id, self.mid, tostring(v.logid), g.count(v.users))
         if g.count(v.users) == 0 and not v:lock() then
             table.insert(emptyroom, k)
         else
@@ -393,14 +393,14 @@ function RoomMgr:createRoom(roomid)
         return nil
     end
     log.debug("idx(%s,%s) create room", id, self.mid)
-    return self:addRoom(Room:new({id = id, mid = self.mid}))
+    return self:addRoom(Room:new({id = id, mid = self.mid, logid=0}))
 end
 
 -- 销毁房间ID为rid的房间
 function RoomMgr:destroyRoom(rid)
     local room = self.mgr[rid]
     if room then
-        log.info("idx(%s,%s,%s) destroy room", self.mid, room.id, tostring(self.logid))
+        log.info("idx(%s,%s,%s) destroy room", self.mid, room.id, tostring(room.logid))
         room:destroy()
         Uniqueid:putUniqueid(self.mid, room.id) -- 释放该房间ID
         room = nil

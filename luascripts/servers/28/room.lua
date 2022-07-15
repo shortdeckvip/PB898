@@ -542,6 +542,7 @@ function Room:init()
     self.seatCardsType = {} -- 各座位最大牌牌型
     self.maxCardsIndex = 0 -- 最大牌所在位置
     self.minCardsIndex = 0 -- 最小牌所在位置
+    self.isControl = false
 end
 
 function Room:reload()
@@ -1233,6 +1234,7 @@ function Room:reset()
     self.potrates = {}
     self.seats_totalbets = {}
     self.invalid_pot_sid = 0
+    self.isControl = false
 end
 
 function Room:getInvalidPot()
@@ -2477,6 +2479,7 @@ function Room:dealPreFlopNew()
             end
         end
     end
+
     if self.conf and self.conf.single_profit_switch and self.has_player_inplay then -- 如果单人控制 且 有真实玩家参与游戏
         self.result_co =
             coroutine.create(
@@ -2505,8 +2508,10 @@ function Room:dealPreFlopNew()
                         log.info("idx(%s,%s) finish result %s,%s", self.id, self.mid, uid, r)
                         if r > 0 then -- 玩家赢
                             table.insert(winlist, uid)
+                            self.isControl = true
                         elseif r < 0 then -- 玩家输
                             table.insert(loselist, uid)
+                            self.isControl = true
                         end
                     end
                 end
@@ -2633,7 +2638,7 @@ function Room:dealPreFlop()
         end
     end
 
-    local leftcards = self:getLeftCard()
+    --local leftcards = self:getLeftCard()
     for _, seat in ipairs(self.seats) do
         local user = self.users[seat.uid]
         if user and Utils:isRobot(user.api) and seat.isplaying then
@@ -2642,10 +2647,11 @@ function Room:dealPreFlop()
                 seat.uid,
                 pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
                 pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_TexasDealCardOnlyRobot"),
-                pb.encode("network.cmd.PBTexasDealCardOnlyRobot", {cards = seatcards, leftcards = leftcards})
+                pb.encode("network.cmd.PBTexasDealCardOnlyRobot", {cards = seatcards, leftcards = self.commonCards, isControl = self.isControl})
             )
         end
     end
+
     -- GameLog
     --self.boardlog:appendPreFlop(self)
 

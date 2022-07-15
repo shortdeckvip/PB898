@@ -1,5 +1,5 @@
 
-¶6
+Ò6
 seotda.protonetwork.cmdcommon.proto"h
 PBSeotdaBlindLevelInfo
 lv (Rlv
@@ -9,7 +9,7 @@
 PBSeotdaGroupItem
 card1 (Rcard1
 card2 (Rcard2
-	cardsType (R	cardsType"¿
+	cardsType (R	cardsType"Û
 
 PBSeotdaSeat+
 seat (2.network.cmd.PBSeatInfoRseat
@@ -57,7 +57,8 @@ chipinTime
 	canMinBet& (R	canMinBet
 canRaise' (RcanRaise"
 canRaiseHalf( (RcanRaiseHalf(
-canRaiseQuarter) (RcanRaiseQuarter"“
+canRaiseQuarter) (RcanRaiseQuarter
+canAllIn* (RcanAllIn"“
 
 PBSeotdaTableInfo
 gameId (RgameId
