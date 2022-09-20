@@ -77,6 +77,21 @@ function VTable:sit(uid, playerinfo)
 	return nil
 end
 
+
+-- 更新指定玩家身上金额
+function VTable:updateMoney(uid, money)
+    if self.seatsmgr then
+        for _, v in ipairs(self.seatsmgr) do
+            if v and v.uid == uid then
+                if v.playerinfo then
+                    v.playerinfo.balance = money
+                end
+                break
+            end
+        end
+    end
+end
+
 -- 获取 uid 坐下的座位
 function VTable:getSeat(uid)
 	for k, v in ipairs(self.seatsmgr) do

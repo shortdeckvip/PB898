@@ -184,12 +184,13 @@ function Room:init()
     self.realPlayerUID = 0
 
     self.lastCreateRobotTime = 0 -- 上次创建机器人时刻
-    self.createRobotTimeInterval = 5 -- 定时器时间间隔(秒)
+    self.createRobotTimeInterval = 4 -- 定时器时间间隔(秒)
     self.lastRemoveRobotTime = 0 -- 上次移除机器人时刻(秒)
 
     self.cards = { 0x1, 0x2, 0x3, 0x4, 0x5, 0x6 } -- 共6个骰子
     self.cardsNum = 6 -- 该局总共发牌张数
-
+    self.needRobotNum = 30 -- 默认需要创建30个机器人
+    self.lastNeedRobotTime = 0  -- 上次需要机器人时刻
     --self.isTest = true
 end
 
@@ -525,7 +526,8 @@ function Room:userInto(uid, linkid, rev)
                 --  当局下注
                 uid = uid,
                 usertotal = 0,
-                areabet = {}
+                areabet = {},
+                balance = self:getUserMoney(uid)
             },
             cardsA = {}, -- A方牌数据
             configchips = self:conf().chips, -- 下注筹码面值所有配置
@@ -908,7 +910,8 @@ function Room:userBet(uid, linkid, rev)
     else
         user.playerinfo.balance = 0
     end
-
+    self.vtable:updateMoney(uid, user.playerinfo.balance)
+    
     if not self:conf().isib and linkid then
         Utils:walletRpc(
             uid,
@@ -1185,7 +1188,8 @@ local function onFinish(self)
                 totalbet = totalbet + l.bet -- 该玩家最近20局的总下注额
                 wincnt = wincnt + ((l.profit > 0) and 1 or 0) -- 该玩家最近20局赢的总次数
             end
-            if totalbet > 0 then -- 如果该玩家在最近20局下注过
+            --if totalbet > 0 then -- 如果该玩家在最近20局下注过
+            if v and v.state == EnumUserState.Playing then
                 table.insert(
                     self.onlinelst, -- 插入在线列表
                     {
@@ -1289,7 +1293,16 @@ local function onCreateRobot(self)
     local function doRun()
         local current_time = global.ctsec() -- 当前时刻(秒)
         local currentTimeMS = global.ctms() -- 当前时刻(毫秒)
-        Utils:checkCreateRobot(self, current_time) -- 检测创建机器人
+        if current_time - self.lastNeedRobotTime > 600 then
+            self.lastNeedRobotTime = current_time
+            if self:conf().global_profit_switch then
+                self.needRobotNum = rand.rand_between(90, 130)
+            else
+                --self.needRobotNum = 30
+                self.needRobotNum = rand.rand_between(30, 70)
+            end
+        end
+        Utils:checkCreateRobot(self, current_time, self.needRobotNum) -- 检测创建机器人
 
         if self.state == EnumRoomState.Check then -- 检测状态
             onCheck(self)
@@ -1305,6 +1318,7 @@ local function onCreateRobot(self)
             end
             if current_time - self.lastRemoveRobotTime > 100 then
                 self.lastRemoveRobotTime = current_time
+
                 for uid, user in pairs(self.users) do
                     if user and not user.linkid then
                         if user.playerinfo and user.playerinfo.balance <= self.minChips then
@@ -1745,6 +1759,18 @@ function Room:finish()
                 end -- end of if bets > 0 then
             end -- end of for _, bettype in ipairs(DEFAULT_BET_TYPE) do
 
+            --盈利扣水
+            if v.totalpureprofit > 0 and (self:conf().rebate or 0) > 0 then
+                local rebate = math.floor(v.totalpureprofit * self:conf().rebate)
+                v.totalprofit = v.totalprofit - rebate
+                v.totalpureprofit = v.totalpureprofit - rebate
+            end
+
+            -- 更新玩家身上金额
+            v.playerinfo = v.playerinfo or { }
+            v.playerinfo.balance = v.playerinfo.balance or 0
+            v.playerinfo.balance = v.playerinfo.balance + v.totalprofit
+
             if 0 == v.totalpureprofit then
                 v.playchips = 0
             end
@@ -1774,12 +1800,7 @@ function Room:finish()
             totalprofit = totalprofit + v.totalprofit -- 该局所有玩家的收益和
             totalfee = totalfee + v.totalfee -- 该局所有玩家的费用和
 
-            --盈利扣水
-            if v.totalpureprofit > 0 and (self:conf().rebate or 0) > 0 then
-                local rebate = math.floor(v.totalpureprofit * self:conf().rebate)
-                v.totalprofit = v.totalprofit - rebate
-                v.totalpureprofit = v.totalpureprofit - rebate
-            end
+            
             -- 牌局统计
             self.sdata.users = self.sdata.users or {}
             self.sdata.users[k] = self.sdata.users[k] or {}
@@ -2120,7 +2141,8 @@ function Room:userTableInfo(uid, linkid, rev)
                 --  当局下注
                 uid = uid,
                 usertotal = 0,
-                areabet = {}
+                areabet = {},
+                balance = self:getUserMoney(uid)
             },
             cardsA = g.copy(self.cards), -- A组牌数据(张数不确定)
             cardsNum = self.cardsNum, -- 一局发牌总张数

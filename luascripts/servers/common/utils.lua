@@ -176,6 +176,19 @@ function Utils:requestJackpot(msg)
     )
 end
 
+
+-- 请求更新jackpot值  2022-8-20 10:49:17
+function Utils:requestJackpotChange(msg)
+    return net.forward(
+        STATISTIC_SERVER_TYPE,
+        pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Statistic"),
+        pb.enum_id("network.inter.Game2StatisticSubCmd", "Game2StatisticSubCmd_JackpotChangeReqResp"),
+        --pb.encode("network.inter.PBJackpotChangeReqResp", msg)
+        pb.encode("network.inter.PBGameLog", msg)
+    )
+end
+
+
 -- 使用 NotifyServer 向用户透传任意消息
 function Utils:pushMsgToUsers(msg)
     return net.forward(
@@ -576,6 +589,20 @@ end
 
 -- 在线人数
 function Utils:getVirtualPlayerCount(room)
+    local playerCount = 0
+    for k, user in pairs(room.users) do
+        if user then
+            playerCount = playerCount + 1
+        end
+    end
+    local onlinenum = #room.onlinelst
+    if onlinenum > 0 then
+        return onlinenum
+    else
+        return playerCount
+    end
+
+    --[[
     local needUpdate = false
     local interval = 3
     if room:conf() and room:conf().update_interval then
@@ -621,6 +648,7 @@ function Utils:getVirtualPlayerCount(room)
         virtualPlayerCount
     )
     return virtualPlayerCount
+    --]]
 end
 
 -- 停服操作
@@ -672,8 +700,9 @@ function Utils:addRobot(room, robotsInfo)
                 -- local user = room.users[robotsInfo[i].uid]
                 -- user.uid = robotsInfo[i].uid
                 room.users[uid].api = robotsInfo[i].api or "2001"
-
-                local balance                       = 1000000 + rand.rand_between(2000, 1000000) -- 随机剩余金额
+                room.users[uid].state = 2     -- EnumUserState.Playing
+                -- local balance                       = 1000000 + rand.rand_between(2000, 1000000) -- 随机剩余金额
+                local balance                       = self:getRandMoney()
                 room.users[uid].money               = balance -- 金币
                 room.users[uid].coin                = balance -- 金豆
                 room.users[uid].diamond             = balance --
@@ -685,7 +714,7 @@ function Utils:addRobot(room, robotsInfo)
                 --room.users[uid].playerinfo.currency
                 room.users[uid].playerinfo.extra    = {}
                 room.users[uid].createtime          = global.ctsec() -- 创建时刻(秒)
-                room.users[uid].lifetime            = rand.rand_between(600, 6000) -- 生存时间长度(秒)
+                room.users[uid].lifetime            = self:getRandLiftTime()   --rand.rand_between(600, 6000) -- 生存时间长度(秒)
                 --room.users[uid].playerinfo.extra.ip
                 --room.users[uid].playerinfo.extra.api
             end
@@ -719,22 +748,57 @@ function Utils:getIndexByProb(prob)
 end
 
 -- 随机获取下注筹码
-function Utils:getBetChip(room)
+function Utils:getBetChip(room, userMoney)
     local confInfo = room:conf()
     if confInfo then
         if confInfo.chips and #confInfo.chips > 0 then
             if not confInfo.robotBetChipProb then
-                confInfo.robotBetChipProb = { 5000, 2500, 1250, 1000, 600, 400, 200, 80, 20 } -- 机器人下注筹码概率
+                confInfo.robotBetChipProb = { 1000, 1000, 2000, 1000, 2000, 1000, 1000, 1000 } -- 机器人下注筹码概率
                 log.debug("DQW getBetChip() reset confInfo.robotBetChipProb")
             end
-            -- return confInfo.chips[self:getIdxByProb(confInfo.chips)]
-            local chip = confInfo.chips[self:getIndexByProb(confInfo.robotBetChipProb)]
-            if chip then
-                return chip
+            -- -- return confInfo.chips[self:getIdxByProb(confInfo.chips)]
+            -- local chip = confInfo.chips[self:getIndexByProb(confInfo.robotBetChipProb)]
+            -- if chip <= userMoney then
+            --     return chip
+            -- end
+            -- 余额<200,余额/10 最接近的投注选项筹码
+            -- 余额>=200,余额/20 最接近的投注选项筹码
+            local chip = confInfo.chips[1]
+            local index = 1
+            if userMoney < 20000 then
+                for i = 2, #confInfo.chips do
+                    if confInfo.chips[i] > userMoney/10 then
+                        index = i
+                        break
+                    end
+                end
+            elseif userMoney < 1000000 then
+                for i = 2, #confInfo.chips do
+                    if confInfo.chips[i] > userMoney/20 then
+                        index = i
+                        break
+                    end
+                end
+            else
+                for i = 2, #confInfo.chips do
+                    if confInfo.chips[i] > userMoney/50 then
+                        index = i
+                        break
+                    end
+                end
             end
+            if index >= 3 then
+                local randV = rand.rand_between(0, 2)
+                return confInfo.chips[index - randV]
+            elseif index >= 2 then
+                local randV = rand.rand_between(0, 1)
+                return confInfo.chips[index - randV]
+            end
+
+            return chip
         end
     end
-    return 2000
+    return 100
 end
 
 -- 随机获取下注区域
@@ -768,12 +832,12 @@ end
 
 -- 参数 room: 房间对象
 -- 参数 current_time: 当前时刻
-function Utils:checkCreateRobot(room, current_time)
+function Utils:checkCreateRobot(room, current_time, needRobotNum)
     if room.createRobotTimeInterval <= current_time - room.lastCreateRobotTime then
         room.lastCreateRobotTime = current_time -- 上次创建机器人时刻
-        if room.createRobotTimeInterval < 100 then
-            room.createRobotTimeInterval = 2 * room.createRobotTimeInterval
-        end
+        -- if room.createRobotTimeInterval < 100 then  -- 间隔时间  秒
+        --     room.createRobotTimeInterval = room.createRobotTimeInterval + 5
+        -- end
         if room and type(room.conf) == "function" then
             local config = room:conf()
             if config then --
@@ -781,13 +845,15 @@ function Utils:checkCreateRobot(room, current_time)
                 if type(room.count) == "function" then
                     local allPlayerNum, robotNum = room:count()
                     if allPlayerNum and robotNum and room.id and room.mid then
+                        needRobotNum = needRobotNum or 30
                         log.debug("idx(%s,%s) notify create robot %s, %s", room.id, room.mid, allPlayerNum, robotNum)
-                        if robotNum < 30 then -- 如果机器人人数不足30人
+                        if robotNum < needRobotNum then -- 如果机器人人数不足30人
                             -- Utils:notifyCreateRobot(self:conf().roomtype, self.mid, self.id, 9 - robotNum) -- 动态创建机器人 old
-                            local createRobotNum = 30 - robotNum
-                            if createRobotNum > 10 then
-                                createRobotNum = 10 -- 每次最多创建10个机器人
-                            end
+                            local createRobotNum = needRobotNum - robotNum
+                            -- if createRobotNum > 10 then
+                            --     createRobotNum = 10 -- 每次最多创建10个机器人
+                            -- end
+                            createRobotNum = rand.rand_between(1,2)  -- 每次创建1-2个机器人
                             if config.roomtype and room.mid and room.id then
                                 self:notifyCreateRobot2(config.roomtype, room.mid, room.id, createRobotNum) -- 动态创建机器人
                             end
@@ -805,11 +871,11 @@ function Utils:robotBet(room)
 
     if room.state == EnumRoomState.Betting then -- 如果是在下注状态
         -- 遍历所有机器人
-        for uid, user in pairs(room.users) do
-            if user and not user.linkid then
+        for uid, user in pairs(room.users) do -- 遍历所有玩家
+            if user and not user.linkid then  -- 如果是机器人
                 -- 获取随机值
                 local randValue = rand.rand_between(0, 10000)
-                if randValue < 1000 then -- 10%的概率下注
+                if randValue < 300 then -- 3%的概率下注
                     local betInfo = { idx = {}, data = {} } -- 下注信息
                     betInfo.idx.roomid = room.id
                     betInfo.idx.matchid = room.mid
@@ -817,8 +883,7 @@ function Utils:robotBet(room)
                     betInfo.data.areabet = {} -- 下注区域信息
                     betInfo.data.areabet[1] = {}
                     betInfo.data.areabet[1].bettype = self:getBetArea(room) -- 下注区域
-                    betInfo.data.areabet[1].betvalue = self:getBetChip(room) --下注金额
-
+                    betInfo.data.areabet[1].betvalue = self:getBetChip(room, room:getUserMoney(uid)) --下注金额
                     room:userBet(uid, nil, betInfo)
                 end
             end
@@ -858,4 +923,44 @@ function Utils:queryChargeInfo(userID, gameID, matchID, roomID)
         pb.enum_id("network.inter.Game2UserInfoSubCmd", "Game2UserInfoSubCmd_QueryChargeInfo"),
         pb.encode("network.inter.Game2UserQueryChargeInfo", msg)
     )
+end
+
+
+-- 获取机器人余额
+function Utils:getRandMoney()
+    --[[
+        余额（余额下限-余额上限：概率）
+5000-10000:2500 10000-100000:5000 100000-1000000:2000 1000000-10000000:500
+    ]]
+    local randV = rand.rand_between(1, 10000)
+    if randV <= 1500 then
+        return rand.rand_between(5000, 10000)
+    elseif randV <= 5800 then
+        return rand.rand_between(10000, 100000)
+    elseif randV <= 8800 then
+        return rand.rand_between(100000, 1000000)
+    elseif randV <= 9800 then
+        return rand.rand_between(1000000, 2000000)
+    else
+        return rand.rand_between(2000000, 10000000)
+    end
+end
+
+
+-- 获取机器人剩余时间
+function Utils:getRandLiftTime()
+    --离开时间
+-- 60-300:1500 300-600:4000 600-1200:3000 1200-3600:1000 3600-7200:500
+    local randV = rand.rand_between(1, 10000)
+    if randV <= 1500 then
+        return rand.rand_between(60, 300)
+    elseif randV <= 5500 then
+        return rand.rand_between(300, 600)
+    elseif randV <= 8500 then
+        return rand.rand_between(600, 1200)
+    elseif randV <= 9500 then
+        return rand.rand_between(1200, 3600)
+    else
+        return rand.rand_between(3600, 7200)
+    end
 end

@@ -1,5 +1,5 @@
 
-‡
+ò
 
 dice.protonetwork.cmdcommon.proto"É
 PBDiceNotifyStart_N
@@ -33,11 +33,12 @@ dice.protonetwork.cmdcommon.proto"É
 lasthit (Rlasthit"M
 PBDiceLogData
 wintype (Rwintype"
-winpokertype (Rwinpokertype"ê
+winpokertype (Rwinpokertype"¨
 PBDiceNotifyShow_N
 cardnum (Rcardnum(
 card (2.network.cmd.PBPokerRcard6
-areainfo (2.network.cmd.PBDiceBetAreaRareainfo"ß
+areainfo (2.network.cmd.PBDiceBetAreaRareainfo
+winTimes (RwinTimes"ß
 PBDiceNotifyFinish_N)
 ranks (2.network.cmd.PBRankRranks,
 log (2.network.cmd.PBDiceLogDataRlog6
@@ -56,7 +57,7 @@ dice.protonetwork.cmdcommon.proto"É
 wincnt (Rwincnt
 totalbet (Rtotalbet"K
 PBDiceOnlineListResp_S1
-list (2.network.cmd.PBDiceOnlineListRlist"
+list (2.network.cmd.PBDiceOnlineListRlist"å
 
 PBDiceData
 state (Rstate
@@ -72,7 +73,8 @@ PBDiceData
  (2.network.cmd.PBPokerRcard 
 configchips (Rconfigchips
 odds (Rodds 
-playerCount (RplayerCount"ù
+playerCount (RplayerCount
+winTimes (RwinTimes"ù
 PBIntoDiceRoomResp_S
 code (Rcode
 gameid (Rgameid,

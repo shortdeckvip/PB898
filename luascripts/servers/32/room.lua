@@ -149,8 +149,10 @@ function Room:init()
     self.realPlayerUID = 0
 
     self.lastCreateRobotTime = 0 -- 上次创建机器人时刻
-    self.createRobotTimeInterval = 5 -- 定时器时间间隔(秒)
+    self.createRobotTimeInterval = 4 -- 定时器时间间隔(秒)
     self.lastRemoveRobotTime = 0 -- 上次移除机器人时刻(秒)
+    self.needRobotNum = 30 -- 默认需要创建30个机器人
+    self.lastNeedRobotTime = 0  -- 上次需要机器人时刻
 end
 
 function Room:roundReset()
@@ -786,6 +788,15 @@ function Room:userBet(uid, linkid, rev)
                     ok = false
                     goto labelnotok
                 end
+                if Utils:isRobot(user.api) and not user.linkid then
+                    if v.bettype == EnumDragonTigerType.EnumDragonTigerType_Dragon and v.betvalue > 0 and user.bets and
+                        user.bets[EnumDragonTigerType.EnumDragonTigerType_Tiger] > 0 then
+                        v.bettype = EnumDragonTigerType.EnumDragonTigerType_Tiger
+                    elseif v.bettype == EnumDragonTigerType.EnumDragonTigerType_Tiger and v.betvalue > 0 and user.bets and
+                        user.bets[EnumDragonTigerType.EnumDragonTigerType_Dragon] > 0 then
+                        v.bettype = EnumDragonTigerType.EnumDragonTigerType_Dragon
+                    end
+                end
                 user_bets[v.bettype] = user_bets[v.bettype] + v.betvalue
                 user_totalbet = user_totalbet + v.betvalue
             end
@@ -887,6 +898,9 @@ function Room:userBet(uid, linkid, rev)
     else
         user.playerinfo.balance = 0
     end
+
+    self.vtable:updateMoney(uid, user.playerinfo.balance)
+
     if not self:conf().isib then
         if linkid then
             Utils:walletRpc(
@@ -1264,7 +1278,17 @@ local function onCreateRobot(self)
     local function doRun()
         local current_time = global.ctsec() -- 当前时刻(秒)
         local currentTimeMS = global.ctms() -- 当前时刻(毫秒)
-        Utils:checkCreateRobot(self, current_time) -- 检测创建机器人
+        
+        if current_time - self.lastNeedRobotTime > 600 then
+            self.lastNeedRobotTime = current_time
+            if self:conf().global_profit_switch then
+                self.needRobotNum = rand.rand_between(120, 190)
+            else
+                --self.needRobotNum = 30
+                self.needRobotNum = rand.rand_between(30, 70)
+            end
+        end
+        Utils:checkCreateRobot(self, current_time, self.needRobotNum) -- 检测创建机器人
 
         -- 检测是否在下注状态
         if self.state == EnumRoomState.Betting then -- 如果是下注状态
@@ -1796,7 +1820,8 @@ local function onFinish(self)
                 totalbet = totalbet + l.bet
                 wincnt = wincnt + ((l.profit > 0) and 1 or 0)
             end
-            if totalbet > 0 then
+            --if totalbet > 0 then
+            if v and v.state == EnumUserState.Playing then
                 table.insert(
                     self.onlinelst,
                     {
@@ -2053,6 +2078,18 @@ function Room:finish()
                     )
                 end
             end
+
+            --盈利扣水
+            if v.totalpureprofit > 0 and (self:conf().rebate or 0) > 0 then
+                local rebate = math.floor(v.totalpureprofit * self:conf().rebate)
+                v.totalprofit = v.totalprofit - rebate
+                v.totalpureprofit = v.totalpureprofit - rebate
+            end
+            -- 更新玩家身上金额
+            v.playerinfo = v.playerinfo or { }
+            v.playerinfo.balance = v.playerinfo.balance or 0
+            v.playerinfo.balance = v.playerinfo.balance + v.totalprofit
+
             if 0 == v.totalpureprofit then
                 v.playchips = 0
             end
@@ -2080,12 +2117,10 @@ function Room:finish()
             totalprofit = totalprofit + v.totalprofit
             totalfee = totalfee + v.totalfee
 
-            --盈利扣水
-            if v.totalpureprofit > 0 and (self:conf().rebate or 0) > 0 then
-                local rebate = math.floor(v.totalpureprofit * self:conf().rebate)
-                v.totalprofit = v.totalprofit - rebate
-                v.totalpureprofit = v.totalpureprofit - rebate
-            end
+            
+
+
+
             -- 牌局统计
             self.sdata.users = self.sdata.users or {}
             self.sdata.users[k] = self.sdata.users[k] or {}

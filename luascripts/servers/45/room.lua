@@ -161,18 +161,21 @@ function Room:init()
     self.realPlayerUID = 0
 
     self.lastCreateRobotTime = 0 -- 上次创建机器人时刻
-    self.createRobotTimeInterval = 5 -- 定时器时间间隔(秒)
+    self.createRobotTimeInterval = 4 -- 定时器时间间隔(秒)
     self.lastRemoveRobotTime = 0 -- 上次移除机器人时刻(秒)
 
     self.cards = {0x101, 0x102}   -- 牌数据
     self.cardsNum = 2    -- 牌张数
+    self.winTimes = 1   -- 默认不是黄金骰子 (1-正常骰子  5-黄金骰子)
+    self.needRobotNum = 30 -- 默认需要创建30个机器人
+    self.lastNeedRobotTime = 0  -- 上次需要机器人时刻
 end
 
 -- 重置这一局数据
 function Room:roundReset()
     -- 牌局相关
     self.update_games = self.update_games + 1 -- 更新经过的局数
-
+    self.winTimes = 1   -- 默认不是黄金骰子
     self.start_time = global.ctms()
 
     self.finish_time = global.ctms()
@@ -505,7 +508,8 @@ function Room:userInto(uid, linkid, rev, isGetTableInfo)
             card = {}, -- 牌数据(张数不确定)
             configchips = self:conf().chips, -- 下注筹码面值所有配置
             odds = {}, -- 下注区域设置(赔率, limit-min, limit-max)
-            playerCount = Utils:getVirtualPlayerCount(self)
+            playerCount = Utils:getVirtualPlayerCount(self),
+            winTimes = self.winTimes
         }
         --data
     } --t
@@ -664,7 +668,11 @@ function Room:userInto(uid, linkid, rev, isGetTableInfo)
                 -- 在摊牌阶段剩余时长 (需要根据牌的张数确定)
                 local cardnum = self.sdata.cards and #self.sdata.cards[1].cards or 0 -- 计算所发的牌张数
                 local time_per_card = self:conf().time_per_card or 300 -- 每发一张牌需要多长时间(毫秒)
-                t.data.lefttime = TimerID.TimerID_Show[2] - (global.ctms() - self.stateBeginTime) + cardnum * time_per_card
+                if self.winTimes > 1 then
+                    t.data.lefttime = TimerID.TimerID_Show[2] + 3000 - (global.ctms() - self.stateBeginTime) + cardnum * time_per_card
+                else
+                    t.data.lefttime = TimerID.TimerID_Show[2] - (global.ctms() - self.stateBeginTime) + cardnum * time_per_card
+                end
                 --t.data.card = g.copy(self.sdata.cards[1].cards)  -- 已发的牌数据
                 if cardnum > 0 then
                     t.data.card = {}
@@ -845,6 +853,15 @@ function Room:userBet(uid, linkid, rev)
                     ok = false
                     goto labelnotok
                 end
+                if Utils:isRobot(user.api) and not user.linkid then
+                    if v.bettype == EnumDiceType.EnumDiceType_2_6 and v.betvalue > 0 and user.bets and
+                        user.bets[EnumDiceType.EnumDiceType_8_12] > 0 then
+                        v.bettype = EnumDiceType.EnumDiceType_8_12
+                    elseif v.bettype == EnumDiceType.EnumDiceType_8_12 and v.betvalue > 0 and user.bets and
+                        user.bets[EnumDiceType.EnumDiceType_2_6] > 0 then
+                        v.bettype = EnumDiceType.EnumDiceType_2_6
+                    end
+                end
                 -- 下面是可以下注
                 user_bets[v.bettype] = user_bets[v.bettype] + v.betvalue -- 增加某一区域的下注金额
                 user_totalbet = user_totalbet + v.betvalue -- 增加总下注金额(该玩家此次总下注额)
@@ -914,6 +931,7 @@ function Room:userBet(uid, linkid, rev)
     else
         user.playerinfo.balance = 0
     end
+    self.vtable:updateMoney(uid, user.playerinfo.balance)
 
     if not self:conf().isib and linkid then
         Utils:walletRpc(
@@ -1191,7 +1209,8 @@ local function onFinish(self)
                 totalbet = totalbet + l.bet -- 该玩家最近20局的总下注额
                 wincnt = wincnt + ((l.profit > 0) and 1 or 0) -- 该玩家最近20局赢的总次数
             end
-            if totalbet > 0 then -- 如果该玩家在最近20局下注过
+            --if totalbet > 0 then -- 如果该玩家在最近20局下注过
+            if v and v.state == EnumUserState.Playing then
                 table.insert(
                     self.onlinelst, -- 插入在线列表
                     {
@@ -1295,7 +1314,17 @@ local function onCreateRobot(self)
     local function doRun()
         local current_time = global.ctsec() -- 当前时刻(秒)
         local currentTimeMS = global.ctms() -- 当前时刻(毫秒)
-        Utils:checkCreateRobot(self, current_time) -- 检测创建机器人
+
+        if current_time - self.lastNeedRobotTime > 600 then
+            self.lastNeedRobotTime = current_time
+            if self:conf().global_profit_switch then
+                self.needRobotNum = rand.rand_between(90, 130)
+            else
+                --self.needRobotNum = 30
+                self.needRobotNum = rand.rand_between(30, 70)
+            end
+        end
+        Utils:checkCreateRobot(self, current_time, self.needRobotNum) -- 检测创建机器人
 
         if self.state == EnumRoomState.Check then -- 检测状态
             onCheck(self)
@@ -1337,8 +1366,14 @@ local function onCreateRobot(self)
                 self:show() -- 开牌(发牌)   进入show牌阶段
             end
         elseif self.state == EnumRoomState.Show then -- 如果是Show牌状态
-            if currentTimeMS - self.stateBeginTime > TimerID.TimerID_Show[2] then
-                self:finish() -- 结算
+            if self.winTimes > 1 then
+                if currentTimeMS - self.stateBeginTime > TimerID.TimerID_Show[2] + 3000 then
+                    self:finish() -- 结算
+                end
+            else
+                if currentTimeMS - self.stateBeginTime > TimerID.TimerID_Show[2] then
+                    self:finish() -- 结算
+                end
             end
         elseif self.state == EnumRoomState.Finish then -- 如果是结算状态
             if currentTimeMS - self.stateBeginTime > TimerID.TimerID_Finish[2] then
@@ -1476,7 +1511,9 @@ function Room:show()
     -- 生成牌，计算牌型
     self.poker:reset()
 
-    self.cards = self.poker:getCards(2) -- 获取2张牌
+    -- self.cards = self.poker:getCards(2) -- 获取2张牌
+    self.cards =  {rand.rand_between(1, 6), rand.rand_between(1, 6)}
+
 
     local wintype = self.poker:getWinType(self.cards) -- 获取赢的一方及赢牌所在位置
     self.cardsNum = 2
@@ -1500,9 +1537,13 @@ function Room:show()
             if #msg.data > 0 then
                 Utils:queryProfitResult(msg)
             end
+            if self:isGlodDice() then
+                self.winTimes = 5   -- 是黄金骰子  (黄金骰子是5倍)
+                log.debug("idx(%s,%s) self.winTimes = 5", self.mid, self.id)
+            end
             local profit_rate, usertotalbet_inhand, usertotalprofit_inhand = self:getTotalProfitRate(wintype)
             local last_profitrate = profit_rate
-            if profit_rate < self:conf().profitrate_threshold_lowerlimit then
+            if profit_rate < self:conf().profitrate_threshold_lowerlimit then  -- 系统总盈利比例 < 盈利比例限制
                 log.info("idx(%s,%s) tigh mode is trigger", self.mid, self.id)
                 local rnd = rand.rand_between(1, 10000)
                 if profit_rate < self:conf().profitrate_threshold_minilimit or rnd <= 5000 then
@@ -1555,7 +1596,8 @@ function Room:show()
                 local t = {
                     cardnum = self.cardsNum, -- 本轮发出的牌总张数
                     card = {}, -- 牌数据
-                    areainfo = {}
+                    areainfo = {},
+                    winTimes = self.winTimes
                 }
 
                 -- 拷贝牌数据
@@ -1640,7 +1682,8 @@ function Room:show()
         local t = {
             cardnum = self.cardsNum, -- 本轮发出的牌总张数
             card = {}, -- 牌数据
-            areainfo = {}
+            areainfo = {},
+            winTimes = self.winTimes
         }
 
         -- 拷贝牌数据
@@ -1770,7 +1813,7 @@ function Room:finish()
                 if bets > 0 then -- 如果该玩家在该下注区下注了
                     -- 计算赢利
                     if g.isInTable(lastlogitem.wintype, bettype) then -- 押中 判断当前区域是否赢
-                        profit = bets * (self:conf() and self:conf().betarea and self:conf().betarea[bettype][1]) -- 赢利(未扣除下注额)
+                        profit = bets * (self:conf() and self:conf().betarea and self:conf().betarea[bettype][1]) * self.winTimes -- 赢利(未扣除下注额)
                         --扣除服务费 盈利下注区的5%
                         --fee = math.floor((profit - bets) * (self:conf() and (self:conf().fee or 0) or 0))
                         v.totalfee = v.totalfee + fee -- 累计服务费
@@ -1797,6 +1840,17 @@ function Room:finish()
                     )
                 end -- end of if bets > 0 then
             end -- end of for _, bettype in ipairs(DEFAULT_BET_TYPE) do
+
+            --盈利扣水
+            if v.totalpureprofit > 0 and (self:conf().rebate or 0) > 0 then
+                local rebate = math.floor(v.totalpureprofit * self:conf().rebate)
+                v.totalprofit = v.totalprofit - rebate
+                v.totalpureprofit = v.totalpureprofit - rebate
+            end
+            -- 更新玩家身上金额
+            v.playerinfo = v.playerinfo or { }
+            v.playerinfo.balance = v.playerinfo.balance or 0
+            v.playerinfo.balance = v.playerinfo.balance + v.totalprofit
 
             if 0 == v.totalpureprofit then
                 v.playchips = 0
@@ -1827,12 +1881,7 @@ function Room:finish()
             totalprofit = totalprofit + v.totalprofit -- 该局所有玩家的收益和
             totalfee = totalfee + v.totalfee -- 该局所有玩家的费用和
 
-            --盈利扣水
-            if v.totalpureprofit > 0 and (self:conf().rebate or 0) > 0 then
-                local rebate = math.floor(v.totalpureprofit * self:conf().rebate)
-                v.totalprofit = v.totalprofit - rebate
-                v.totalpureprofit = v.totalpureprofit - rebate
-            end
+            
             -- 牌局统计
             self.sdata.users = self.sdata.users or {}
             self.sdata.users[k] = self.sdata.users[k] or {}
@@ -2007,7 +2056,7 @@ end
 
 -- 获取系统盈利比例
 function Room:getTotalProfitRate(wintype)
-    local totalbets, totalprofit = 0, 0 -- 总下注额,总收益
+    local totalbets, totalprofit = 0, 0 -- 真实玩家总下注额, 真实玩家总收益
     local sn = 0
 
     for k, v in g.pairsByKeys(
@@ -2050,10 +2099,10 @@ function Room:getTotalProfitRate(wintype)
                 (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1])
         end
     end
-    totalbets = totalbets + usertotalbet_inhand
-    totalprofit = totalprofit + usertotalprofit_inhand
+    totalbets = totalbets + usertotalbet_inhand    -- 真实玩家总下注额 
+    totalprofit = totalprofit + usertotalprofit_inhand -- 真实玩家总收益
 
-    local profit_rate = totalbets > 0 and 1 - totalprofit / totalbets or 0 -- 系统总盈利比例
+    local profit_rate = totalbets > 0 and 1 - totalprofit / totalbets or 0 -- 系统总盈利比例 = 1 - 真实玩家总盈利比例 = 系统实际盈利额/总下注
     log.info(
         "idx(%s,%s) total_bets=%s total_profit=%s totalbets=%s,totalprofit=%s,profit_rate=%s",
         self.id,
@@ -2064,6 +2113,7 @@ function Room:getTotalProfitRate(wintype)
         totalprofit,
         profit_rate
     )
+    -- 返回 系统总盈利比例，真实玩家这一局总下注金额，真实玩家这一局总盈利
     return profit_rate, usertotalbet_inhand, usertotalprofit_inhand
 end
 
@@ -2173,7 +2223,8 @@ function Room:userTableInfo(uid, linkid, rev)
             card = {}, -- 牌数据(张数不确定)
             configchips = self:conf().chips, -- 下注筹码面值所有配置
             odds = {}, -- 下注区域设置(赔率, limit-min, limit-max)
-            playerCount = Utils:getVirtualPlayerCount(self)
+            playerCount = Utils:getVirtualPlayerCount(self),
+            winTimes = self.winTimes
         }
         --data
     } --t
@@ -2202,7 +2253,11 @@ function Room:userTableInfo(uid, linkid, rev)
         -- 在摊牌阶段剩余时长 (需要根据牌的张数确定)
         local cardnum = self.sdata.cards and #self.sdata.cards[1].cards or 0 -- 计算所发的牌张数
         local time_per_card = self:conf().time_per_card or 300 -- 每发一张牌需要多长时间(毫秒)
-        t.data.lefttime = TimerID.TimerID_Show[2] - (global.ctms() - self.stateBeginTime) + cardnum * time_per_card
+        if self.winTimes > 1 then
+            t.data.lefttime = TimerID.TimerID_Show[2] + 3000 - (global.ctms() - self.stateBeginTime) + cardnum * time_per_card
+        else
+            t.data.lefttime = TimerID.TimerID_Show[2] - (global.ctms() - self.stateBeginTime) + cardnum * time_per_card
+        end
         --t.data.card = g.copy(self.sdata.cards[1].cards)  -- 已发的牌数据
         -- if cardnum > 0 then
         --     for i = 1, cardnum, 1 do
@@ -2309,7 +2364,7 @@ function Room:GetRealPlayerWin(wintype)
         userTotalBet = userTotalBet + (self.userbets[v] or 0)
         if wintype == v then
             realPlayerWin = realPlayerWin +
-                (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1])
+                (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1]) * self.winTimes
         end
     end
     realPlayerWin = realPlayerWin - userTotalBet
@@ -2473,7 +2528,8 @@ function Room:getCardsByResult(res, maxwin)
     local needCardsType = 1   -- 需要的牌型  需要某区域赢
     if res == 0 then
         self.poker:reset()  -- 重新洗牌
-        self.cards = self.poker:getCards(2) -- 获取2张牌
+        --self.cards = self.poker:getCards(2) -- 获取2张牌
+        self.cards = {rand.rand_between(1, 6), rand.rand_between(1, 6)}
 
         local point = (self.cards[1] + self.cards[2])& 0xFF
         if point < 7 then
@@ -2548,3 +2604,101 @@ function Room:getCardsByResult(res, maxwin)
         self.cards[2] = 0x100 + rand.rand_between(8-randValue, 6)
     end
 end
+
+
+
+-- 检测是否满足黄金骰子条件
+function Room:isGlodDice()
+    -- :getTotalProfitRate
+    local totalbets, totalprofit = 0, 0 -- 总下注额,总收益
+    local sn = 0
+
+    -- if rand.rand_between(1, 10000) <= 10000 then  --20%概率
+    --     return true
+    -- end
+
+    for k, v in g.pairsByKeys(
+        self.total_bets,
+        function(arg1, arg2)
+            return arg1 > arg2
+        end
+    ) do
+        if sn >= self:conf().profitrate_threshold_maxdays then
+            sn = k
+            break
+        end
+        totalbets = totalbets + v -- 累计玩家总下注额
+        sn = sn + 1
+    end
+
+    self.total_bets[sn] = nil -- 将最前那个移除掉  防止超过 profitrate_threshold_maxdays 天
+    sn = 0
+
+    for k, v in g.pairsByKeys(
+        self.total_profit,
+        function(arg1, arg2)
+            return arg1 > arg2
+        end
+    ) do
+        if sn >= self:conf().profitrate_threshold_maxdays then
+            sn = k
+            break
+        end
+        totalprofit = totalprofit + v -- 累计玩家总盈利
+        sn = sn + 1
+    end
+    self.total_profit[sn] = nil
+
+    local usertotalbet_inhand, usertotalprofit_inhand = 0, 0
+    for _, v in pairs(EnumDiceType) do
+        usertotalbet_inhand = usertotalbet_inhand + (self.userbets[v] or 0)  -- 该局总下注金额
+    end
+
+    -- 当前3日系统盈利率大于配置 预期盈利率 profitrate_threshold_lowerlimit
+    if totalbets > 0 and (totalbets - totalprofit) / totalbets  <= self:conf().profitrate_threshold_lowerlimit then
+        return false
+    end
+
+    totalbets = totalbets + usertotalbet_inhand  -- 加上这一局的真实玩总下注金额
+
+    local  realMaxWin = 0
+
+    for _, v in pairs(EnumDiceType) do        
+        if self:conf() and self:conf().betarea and self:conf().betarea[v][1] then
+            local realWin = (self.userbets[v] or 0) * self:conf().betarea[v][1] * 5
+            if realWin > realMaxWin then
+                realMaxWin = realWin
+            end
+        end
+    end
+
+    if totalbets > 0 and (totalbets - totalprofit - realMaxWin) / totalbets <  self:conf().profitrate_threshold_lowerlimit then -- 如果系统总盈利 未超出限制
+        return false
+    end
+
+    if rand.rand_between(1, 10000) <= 2000 then  --20%概率
+        return true
+    end
+
+    return false
+end
+
+--[[
+    7updown 黄金骰子
+触发效果
+	所有盘口赔率*5
+触发时机
+	下注阶段结束后
+触发条件
+	1.全局盈利模式
+	2.当前3日盈利率大于配置 预期盈利率 profitrate_threshold_lowerlimit
+	3.以赔率*5预计算所有可能开奖结果中最小盈利率仍大于等于 预期盈利率，即
+	(AllWin + TotalBet - MAx(TotalBet_up * upRate * 5, TotalBet_down * downRate * 5,TotalBet_7 * 7Rate * 5)) / (ALLBet + TotalBet)
+	Allwin:统计盈利率总赢    该局前系统总赢金额 = 该局前真实玩家总下注额 - 该局前真实玩家总赢金额        totalprofit
+	ALLBet:统计盈利率总下注  该局前真实玩家总下注额      totalbets
+	TotalBet:该局总下注      usertotalprofit_inhand
+	TotalBet_up:该局up区域总下注
+	upRate：up区域赔率
+	4.满足以上两个条件后，20%概率触发 
+
+--]]

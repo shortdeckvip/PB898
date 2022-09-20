@@ -1,5 +1,5 @@
 
-ñ
+Å
 
 slot.protonetwork.cmdcommon.proto"c
 PBSlotSpinReq_C,
@@ -34,7 +34,11 @@ winJackPot"H
 PBSlotJackPotRecordReq_C,
 idx (2.network.cmd.RoomIndexDataRidx"3
 PBSlotJackPotRecordResp_S
-allUid (RallUid"´
+allUid (RallUid".
+
+PBLineInfo
+id (Rid
+col (Rcol"Ê
 
 PBSlotData
 state (Rstate
@@ -54,7 +58,8 @@ currentBet
  (RautoSpinList
 jpid (Rjpid
 lineNum (RlineNum.
-totalFreeSpinTimes (RtotalFreeSpinTimes"ù
+totalFreeSpinTimes (RtotalFreeSpinTimes9
+allLineInfo (2.network.cmd.PBLineInfoRallLineInfo"ù
 PBSlotIntoRoomResp_S
 code (Rcode
 gameid (Rgameid,

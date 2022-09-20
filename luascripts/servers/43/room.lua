@@ -15,21 +15,33 @@ Room = Room or {}
 
 -- 定时器信息
 local TimerID = {
-    TimerID_Check = {1, 1000}, --id, interval(ms), timestamp(ms)
-    TimerID_Timeout = {2, 5 * 1000, 0}, --id, interval(ms), timestamp(ms)
-    TimerID_MutexTo = {3, 5 * 1000, 0}, --id, interval(ms), timestamp(ms)
-    TimerID_FreeSpinTimes = {4, 3 * 1000, 0}, --id, interval(ms), timestamp(ms)
-    TimerID_Result = {5, 3 * 1000, 0}, --id, interval(ms), timestamp(ms)
-    TimerID_Wallet = {6, 200, 0}, --id, interval(ms), timestamp(ms)
-    TimerID_WaitJackpotResult = {7, 1000, 0} 
+    TimerID_Check = { 1, 1000 }, --id, interval(ms), timestamp(ms)
+    TimerID_Timeout = { 2, 5 * 1000, 0 }, --id, interval(ms), timestamp(ms)
+    TimerID_MutexTo = { 3, 5 * 1000, 0 }, --id, interval(ms), timestamp(ms)
+    TimerID_FreeSpinTimes = { 4, 3 * 1000, 0 }, --id, interval(ms), timestamp(ms)
+    TimerID_Result = { 5, 3 * 1000, 0 }, --id, interval(ms), timestamp(ms)
+    TimerID_Wallet = { 6, 200, 0 }, --id, interval(ms), timestamp(ms)
+    TimerID_WaitJackpotResult = { 7, 1500, 0 },
+    TimerID_BroadCastMsg = { 8, 7000, 0 } -- 延迟广播
 }
+
+
+-- 房间状态
+local EnumRoomState = {
+    Check = 1,
+    Start = 2,
+    Betting = 3, -- 下注状态
+    Show = 4,
+    Finish = 5
+}
+
 
 -- 玩家状态
 local EnumUserState = {
-    Playing = 1,
-    Leave = 2,
-    Logout = 3,
-    Intoing = 4
+    Intoing = 1, -- 进入
+    Playing = 2, -- 正在玩
+    Logout = 3, -- 退出
+    Leave = 4 -- 离开
 }
 
 -- 牌型
@@ -388,7 +400,7 @@ local function onResultTimeout(arg)
 end
 
 function Room:queryUserResult(ok, ud)
-    if self.timer and self.conf.single_profit_switch then
+    if self.timer and self.confInfo.single_profit_switch then
         timer.cancel(self.timer, TimerID.TimerID_Result[1])
         log.info("idx(%s,%s) query userresult ok:%s", self.id, self.mid, tostring(ok))
         coroutine.resume(self.result_co, ok, ud)
@@ -409,25 +421,52 @@ end
 --
 local function onWaitJackpotResult(self)
     local function doRun()
-        timer.cancel(self.timer, TimerID.TimerID_WaitJackpotResult[1])   -- 关闭定时器
+        timer.cancel(self.timer, TimerID.TimerID_WaitJackpotResult[1]) -- 关闭定时器
         if self.needJackPotResult then
             self.needJackPotResult = false
-            self.state = 0
-            self.stateBeginTime = global.ctsec()  -- 该状态开始时刻 
+
+            self.state = EnumRoomState.Check
+            self.stateBeginTime = global.ctsec() -- 该状态开始时刻
+
+            if not self.users[self.uid].isdebiting and self.freeSpinTimes <= 0 and not self.needJackPotResult then -- 如果未中免费旋转且未中jackpot
+                Utils:credit(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE")) -- 增加金额(输赢都更新金额)
+                log.debug("Utils:credit(),uid=%s,self.winMoney=%s,userMoney=%s,onWaitJackpotResult()", self.uid,
+                    self.winMoney, self:getUserMoney(self.uid))
+                log.debug("uid=%s,self.sdata.jp=%s", self.uid, cjson.encode(self.sdata.jp))
+                self.statistic:appendLogs(self.sdata, self.logid) -- 统计信息
+                self:reset()
+
+                self.winMoney = 0
+                self.sdata.jp = {}
+                Utils:serializeMiniGame(SLOT_INFO, nil, global.stype())
+            end
         end
     end
+
     g.call(doRun)
 end
 
+local function onBroadcastMsg(self)
+    local function doRun()
+        timer.cancel(self.timer, TimerID.TimerID_BroadCastMsg[1])
+        -- 延迟广播中jackpot消息
+        Utils:broadcastSysChatMsgToAllUsers(self.notify_jackpot_msg)
+        log.debug("self.notify_jackpot_msg=%s", cjson.encode(self.notify_jackpot_msg))
+        self.notify_jackpot_msg = nil
+    end
+
+    g.call(doRun)
+end
 
 -- 获取玩家身上金额
 function Room:getUserMoney(uid)
     local user = self.users[uid]
 
-    if self.conf and user then
-        if not self.conf.roomtype or self.conf.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money") then
+    if self.confInfo and user then
+        if not self.confInfo.roomtype or
+            self.confInfo.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money") then
             return user.money
-        elseif self.conf.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
+        elseif self.confInfo.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
             return user.coin
         end
     end
@@ -438,11 +477,16 @@ end
 function Room:subUserMoney(uid, subMoney)
     local user = self.users[uid]
 
-    if self.conf and user then
-        if not self.conf.roomtype or self.conf.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money") then
+    if self.confInfo and user then
+        if not self.confInfo.roomtype or
+            self.confInfo.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money") then
             user.money = user.money - subMoney
-        elseif self.conf.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
+            user.playerinfo = user.playerinfo or {}
+            user.playerinfo.balance = user.money
+        elseif self.confInfo.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
             user.coin = user.coin - subMoney
+            user.playerinfo = user.playerinfo or {}
+            user.playerinfo.balance = user.coin
         end
     end
 end
@@ -487,34 +531,43 @@ local function onCheck(self)
 
         -- 定时检测，若玩家太长时间不操作，则让玩家离开房间
     end
+
     g.call(doRun)
 end
 
 -- 房间初始化
 function Room:init()
-    self.conf = MatchMgr:getConfByMid(self.mid) -- 加载配置信息
-    if not self.conf then
-        log.error("idx(%s,%s) self.conf == nil", self.id, self.mid)
+    self.confInfo = MatchMgr:getConfByMid(self.mid) -- 加载配置信息
+    if not self.confInfo then
+        log.error("idx(%s,%s) self.confInfo == nil", self.id, self.mid)
         return
     end
-    self.conf.jpminbet = self.conf.jpminbet or 10000
+    self.confInfo.jpminbet = self.confInfo.jpminbet or 10000
 
     log.info(
-        "idx(%s,%s,%s) init() profitrate_threshold_maxdays=%s,profitrate_threshold_minilimit=%s,profitrate_threshold_lowerlimit=%s",
+        "idx(%s,%s,%s) init() profitrate_threshold_maxdays=%s,profitrate_threshold_minilimit=%s,profitrate_threshold_lowerlimit=%s"
+        ,
         self.id,
         self.mid,
         tostring(self.logid),
-        tostring(self.conf.profitrate_threshold_maxdays),
-        tostring(self.conf.profitrate_threshold_minilimit),
-        tostring(self.conf.profitrate_threshold_lowerlimit)
+        tostring(self.confInfo.profitrate_threshold_maxdays),
+        tostring(self.confInfo.profitrate_threshold_minilimit),
+        tostring(self.confInfo.profitrate_threshold_lowerlimit)
     )
 
     self.users = {} -- 当前玩家信息
     self.uid = 0 -- 当前玩家ID
+
     self.bet = 0 -- 当前下注金额
     self.freeSpinTimes = 0 -- 当前剩余免费旋转次数
     self.pot = 0 -- 奖池
-    self.lastWin = 0
+    self.lastWin = 0 -- 上一局中奖金额
+
+
+    self.beginMoney = 0 -- 一局游戏开始前身上金额
+    self.winMoney = 0 -- 当前这一局赢得的金额
+    self.currentIsFreeSpin = false -- 当前这一局是否为免费旋转
+    self.index = 1
 
     self.lastSpinIsFree = false -- 上一局是否是免费旋转
     self.totalFreeSpinTimes = 0 -- 最近总的免费旋转次数
@@ -525,17 +578,41 @@ function Room:init()
     self.gameId = 0
     self.gameid = global.stype() -- 游戏ID  43-slot
 
-    self.starttime = 0 -- 最近一局牌局开始时刻(秒) global.ctsec()
-    self.tabletype = self.conf.matchtype
+    self.start_time = global.ctms()
+    self.starttime = self.start_time / 1000 -- 最近一局牌局开始时刻(秒) global.ctsec()
+    self.tabletype = self.confInfo.matchtype
 
-    self.statistic = Statistic:new(self.id, self.conf.mid) -- 统计信息
+    self.statistic = Statistic:new(self.id, self.confInfo.mid) -- 统计信息
     self.sdata = {
-        roomtype = self.conf.roomtype, -- 房间类型
-        tag = self.conf.tag
+        roomtype = self.confInfo.roomtype, -- 房间类型
+        tag = self.confInfo.tag
+    }
+    self.gamelog = {
+        logid = self.logid or 0,
+        stime = self.starttime,
+        etime = global.ctms() / 1000,
+        gameid = global.stype(),
+        serverid = global.sid(),
+        matchid = self.mid,
+        roomid = self.id,
+        roomtype = self.confInfo.roomtype, -- 房间类型
+        tag = self.confInfo.tag or 0,
+        jp = {},
+        cards = { { cards = {} } },
+        cardstype = {},
+        gameinfo = {},
+        wintypes = { 1 },
+        winpokertype = 0,
+        totalbet = self.bet or 0,
+        totalprofit = self.winMoney or 0, -- 该局总收益
+        areas = {},
+        extrainfo = ""
+
     }
 
-    self.state = 0 --pb.enum_id("network.cmd.PBTeemPattiTableState", "PBTeemPattiTableState_None") -- 桌子状态 0-未开始  1-开始还未结束
-    self.stateBeginTime = 0  -- 该状态开始时刻  global.ctsec()
+    self.state = EnumRoomState.Check -- 房间状态
+    --self.state = 0 --pb.enum_id("network.cmd.PBTeemPattiTableState", "PBTeemPattiTableState_None") -- 桌子状态 0-未开始  1-开始还未结束
+    self.stateBeginTime = 0 -- 该状态开始时刻  global.ctsec()
     self.reviewlogs = LogMgr:new(5)
 
     --实时牌局
@@ -544,7 +621,7 @@ function Room:init()
     -- 配牌
     self.cfgcard_switch = false
     self.cfgcard =
-        cfgcard:new(
+    cfgcard:new(
         {
             handcards = {
                 -- 15张手牌（从左到右，从上到下 [1,13]）
@@ -566,7 +643,7 @@ function Room:init()
             }
         }
     )
-    self.cards = {0x06, 0x0c, 0x0B, 0x02, 0x02, 0x03, 0x09, 0x0d, 0x01, 0x02, 0x03, 0x02, 0x02, 0x03, 0x01}
+    self.cards = { 0x06, 0x0c, 0x0B, 0x02, 0x02, 0x03, 0x09, 0x0d, 0x01, 0x02, 0x03, 0x02, 0x02, 0x03, 0x01 }
     self.tableStartCount = 0
     self.logid = self.statistic:genLogId() -- 日志ID
 
@@ -600,10 +677,10 @@ local function GetUserKVData(uid, mid, id)
     log.debug("GetUserKVData(),uid=%s", uid)
     --local uid = 1001
     local op = 0 -- 0-读取  1-写入
-    local v = {gameid = 43, bv = 100000, win = {{type = 1, cnt = 10}, {type = 2, cnt = 5}}} -- type =1 freespin剩余次数   =2 其它
+    local v = { gameid = 43, bv = 100000, win = { { type = 1, cnt = 10 }, { type = 2, cnt = 5 } } } -- type =1 freespin剩余次数   =2 其它
     --local updata = {k = '1001|43', v = cjson.encode(v)}
-    local updata = {k = uid .. "|43", v = cjson.encode(v)}
-    Utils:updateUserInfo({uid = uid, matchid = mid, roomid = id, op = op, data = {updata}})
+    local updata = { k = uid .. "|43", v = cjson.encode(v) }
+    Utils:updateUserInfo({ uid = uid, matchid = mid, roomid = id, op = op, data = { updata } })
 end
 
 -- 保存某玩家的剩余免费旋转次数及下注金额
@@ -611,23 +688,27 @@ end
 -- 参数 bet: 下注金额
 -- 参数 freeSpinTimes: 剩余的免费旋转次数
 -- 参数 freeSpinTotalTimes: 最近总的免费旋转次数
-local function SetUserKVData(uid, bet, freeSpinTimes, mid, id, freeSpinTotalTimes, winMoney)
+-- 参数 winMoney: 免费旋转赢取到的金额总和
+-- 参数 totalWin: 总共赢取到的金额总和
+local function SetUserKVData(uid, bet, freeSpinTimes, mid, id, freeSpinTotalTimes, winMoney, totalWin)
     log.debug(
-        "SetUserKVData(), uid=%s,bet=%s, freeSpinTimes=%s, freeSpinTotalTimes=%s, winMoney=%s",
+        "SetUserKVData(), uid=%s,bet=%s, freeSpinTimes=%s, freeSpinTotalTimes=%s, winMoney=%s, totalWin=%s",
         uid,
         bet,
         freeSpinTimes,
         freeSpinTotalTimes,
-        winMoney
+        winMoney,
+        totalWin
     )
     local op = 1 -- 0-读取  1-写入
     local v = {
         gameid = 43,
         bv = bet,
-        win = {{type = 1, cnt = freeSpinTimes}, {type = 2, cnt = freeSpinTotalTimes}, {type = 3, cnt = winMoney}}
-    } -- type =1 freespin剩余次数   =2 freespin总次数  =3 freespin赢得的金额
-    local updata = {k = tostring(uid) .. "|43", v = cjson.encode(v)}
-    Utils:updateUserInfo({uid = uid, matchid = mid, roomid = id, op = op, data = {updata}})
+        win = { { type = 1, cnt = freeSpinTimes }, { type = 2, cnt = freeSpinTotalTimes }, { type = 3, cnt = winMoney },
+            { type = 4, cnt = totalWin } }
+    } -- type =1 freespin剩余次数   =2 freespin总次数  =3 freespin赢得的金额  4 free+free前总赢得的金额(包括jackpot)
+    local updata = { k = tostring(uid) .. "|43", v = cjson.encode(v) }
+    Utils:updateUserInfo({ uid = uid, matchid = mid, roomid = id, op = op, data = { updata } })
 end
 
 -- 解析获取到的玩家剩余免费旋转次数
@@ -655,12 +736,15 @@ function Room:kvdata(data)
                             elseif value.type == 3 then
                                 self.totalFreeSpinWin = value.cnt or 0 --已赢得的金额
                                 self.lastWin = self.totalFreeSpinWin
+                            elseif value.type == 4 then
+                                self.winMoney = value.cnt or 0 -- 总共赢取到的金额
                             end
                         end
                     end
                     if self.totalFreeSpinTimes > self.freeSpinTimes then
                         self.lastSpinIsFree = true -- 默认上次是自费旋转
-                        self.beginFreeSpinMoney = self:getUserMoney(self.uid) - self.totalFreeSpinWin -- 第一次免费旋转时才保存开始免费旋转时的金额
+                        --self.beginFreeSpinMoney = self:getUserMoney(self.uid) - self.totalFreeSpinWin -- 第一次免费旋转时才保存开始免费旋转时的金额
+                        self.beginFreeSpinMoney = self:getUserMoney(self.uid) -- 第一次免费旋转时才保存开始免费旋转时的金额
                     elseif self.totalFreeSpinTimes < self.freeSpinTimes then
                         self.totalFreeSpinTimes = self.freeSpinTimes
                     end
@@ -685,8 +769,8 @@ end
 
 -- 重新加载配置信息
 function Room:reload()
-    self.conf = MatchMgr:getConfByMid(self.mid) -- 获取配置信息
-    self.conf.jpminbet = self.conf.jpminbet or 10000
+    self.confInfo = MatchMgr:getConfByMid(self.mid) -- 获取配置信息
+    self.confInfo.jpminbet = self.confInfo.jpminbet or 10000
     self.cfgcard_switch = false
 end
 
@@ -713,7 +797,7 @@ function Room:sendCmdToPlayingUsers(maincmd, subcmd, msg, msglen)
             end
         end
         self.user_cached = true
-    --log.debug("idx:%s,%s is not cached", self.id,self.mid)
+        --log.debug("idx:%s,%s is not cached", self.id,self.mid)
     end
 
     net.send_users(cjson.encode(self.links), maincmd, subcmd, msg, msglen)
@@ -722,11 +806,11 @@ end
 function Room:getApiUserNum()
     local t = {}
     for k, v in pairs(self.users) do
-        if v.api and self.conf and self.conf.roomtype then
+        if v.api and self.confInfo and self.confInfo.roomtype then
             t[v.api] = t[v.api] or {}
-            t[v.api][self.conf.roomtype] = t[v.api][self.conf.roomtype] or {}
+            t[v.api][self.confInfo.roomtype] = t[v.api][self.confInfo.roomtype] or {}
             if v.state == EnumUserState.Playing then
-                t[v.api][self.conf.roomtype].players = (t[v.api][self.conf.roomtype].players or 0) + 1
+                t[v.api][self.confInfo.roomtype].players = (t[v.api][self.confInfo.roomtype].players or 0) + 1
             end
         end
     end
@@ -739,7 +823,7 @@ function Room:lock()
 end
 
 function Room:roomtype()
-    return self.conf.roomtype
+    return self.confInfo.roomtype
 end
 
 -- 玩家退出
@@ -838,6 +922,9 @@ end
 -- 玩家进入房间
 -- 参数 uid: 要进入的玩家ID
 function Room:userInto(uid, linkid, rev)
+    if not linkid then
+        return
+    end
     local t = {
         -- 对应 PBSlotIntoRoomResp_S 消息
         code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameSuccess"),
@@ -846,20 +933,20 @@ function Room:userInto(uid, linkid, rev)
             srvid = global.sid(), -- 服务器ID ?
             roomid = self.id, -- 房间ID
             matchid = self.mid, -- 房间级别 (1：初级场  2：中级场  3：高级场)
-            roomtype = self.conf.roomtype or 0
+            roomtype = self:conf().roomtype or 0
         },
         data = {
             state = self.state, -- 当前房间状态
-            betList = self.conf.chips or {10, 100, 500, 1000, 10000}, -- 下注列表
-            jackPot = JackpotMgr:getJackpotById(self.conf.jpid) or 0, -- 奖池
+            betList = self.confInfo.chips or { 10, 100, 500, 1000, 10000 }, -- 下注列表
+            jackPot = JackpotMgr:getJackpotById(self.confInfo.jpid) or 0, -- 奖池
             playerinfo = {}, -- 玩家信息
             lastWin = self.lastWin or 0, -- 最后一次摇奖中奖信息
             autoSpinTimes = 0, -- 自动旋转次数
-            freeSpinTimes = self.freeSpinTimes or 0,
+            freeSpinTimes = self.freeSpinTimes or 0, -- 剩余免费旋转次数
             currentBet = self.bet or 0,
             cards = self.cards or {}, -- 牌数据(共15张)
-            autoSpinList = self.conf.autoSPinList or {2, 5, 10, 20}, -- 自动旋转次数
-            jpid = self.conf.jpid or 21,
+            autoSpinList = self.confInfo.autoSPinList or { 2, 5, 10, 20 }, -- 自动旋转次数
+            jpid = self.confInfo.jpid or 31,
             lineNum = SLOT_CONF.lineNum or 10, -- 线条总数
             totalFreeSpinTimes = self.totalFreeSpinTimes or 0 -- 总的免费旋转次数
         } --data
@@ -868,13 +955,15 @@ function Room:userInto(uid, linkid, rev)
     local function handleFail(code)
         t.code = code
         t.data = nil
-        net.send(
-            linkid,
-            uid,
-            pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-            pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_IntoGameRoomResp"),
-            pb.encode("network.cmd.PBIntoGameRoomResp_S", t)
-        )
+        if linkid then
+            net.send(
+                linkid,
+                uid,
+                pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_IntoGameRoomResp"),
+                pb.encode("network.cmd.PBIntoGameRoomResp_S", t)
+            )
+        end
         log.info(
             "idx(%s,%s,%s) player:%s ip %s code %s into room failed",
             self.id,
@@ -892,36 +981,32 @@ function Room:userInto(uid, linkid, rev)
         return
     end
 
-    if Utils:hasIP(self, uid, rev.ip, rev.api) then
-        handleFail(pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_SameIp")) -- 出现相同IP
-        return
-    end
     self.needGetFreeSpinTimes = true
-    if self.uid and self.uid ~= 0 then -- 如有该桌已有玩家
+    if self.uid and self.uid ~= 0 then -- 如果该桌已有玩家
         if self.uid ~= uid then
             handleFail(pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameFail"))
         else
             if self.users[uid] then
                 self.needGetFreeSpinTimes = false
-            -- self.users[uid].state = EnumUserState.Playing
-            -- self:userTableInfo(uid, linkid, rev)
-            -- return
+                -- self.users[uid].state = EnumUserState.Playing
+                -- self:userTableInfo(uid, linkid, rev)
+                -- return
             end
         end
     end
 
     self.users[uid] =
-        self.users[uid] or
-        {TimerID_MutexTo = timer.create(), TimerID_Timeout = timer.create(), TimerID_FreeSpinTimes = timer.create()}
+    self.users[uid] or
+        { TimerID_MutexTo = timer.create(), TimerID_Timeout = timer.create(), TimerID_FreeSpinTimes = timer.create() }
     local user = self.users[uid]
     user.money = 0
     user.diamond = 0 --
     user.linkid = linkid
-    user.ip = rev.ip
+    user.ip = rev.ip or ""
     user.state = EnumUserState.Intoing
 
     user.mutex =
-        coroutine.create(
+    coroutine.create(
         function(user)
             mutex.request(
                 pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Mutex"),
@@ -933,16 +1018,22 @@ function Room:userInto(uid, linkid, rev)
                         srvid = global.sid(),
                         matchid = self.mid,
                         roomid = self.id,
-                        roomtype = self.conf and self.conf.roomtype
+                        roomtype = self.confInfo and self.confInfo.roomtype
                     }
                 )
             )
             local ok = coroutine.yield()
             if not ok then
                 if self.users[uid] ~= nil then
-                    timer.destroy(user.TimerID_MutexTo)
-                    timer.destroy(user.TimerID_Timeout)
-                    timer.destroy(user.TimerID_FreeSpinTimes)
+                    if user and user.TimerID_MutexTo then
+                        timer.destroy(user.TimerID_MutexTo)
+                    end
+                    if user and user.TimerID_Timeout then
+                        timer.destroy(user.TimerID_Timeout)
+                    end
+                    if user and user.TimerID_FreeSpinTimes then
+                        timer.destroy(user.TimerID_FreeSpinTimes)
+                    end
                     self.users[uid] = nil
                     t.code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameFail") -- 进入房间失败
                     t.data = nil
@@ -953,7 +1044,7 @@ function Room:userInto(uid, linkid, rev)
                         pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_IntoGameRoomResp"),
                         pb.encode("network.cmd.PBIntoGameRoomResp_S", t)
                     )
-                --Utils:sendTipsToMe(linkid, uid, global.lang(37), 0)
+                    --Utils:sendTipsToMe(linkid, uid, global.lang(37), 0)
                 end
                 log.info(
                     "idx(%s,%s,%s) player: uid=%s has been in another room",
@@ -966,15 +1057,15 @@ function Room:userInto(uid, linkid, rev)
             end
 
             user.co =
-                coroutine.create(
+            coroutine.create(
                 function(user)
                     Utils:queryUserInfo(
                         {
                             uid = uid,
                             roomid = self.id,
                             matchid = self.mid,
-                            jpid = self.conf.jpid, --
-                            carrybound = self.conf.carrybound --???
+                            jpid = self.confInfo.jpid, --
+                            carrybound = self:conf().carrybound --???
                         }
                     )
                     --print("start coroutine", self, user, uid)
@@ -1000,7 +1091,15 @@ function Room:userInto(uid, linkid, rev)
                         user.intots = user.intots or global.ctsec()
                         user.sid = ud.sid
                         user.userId = ud.userId
-                        user.roundId = user.roundId or self.statistic:genLogId()
+                        -- user.roundId = user.roundId or self.statistic:genLogId()  -- pve游戏中不需要该值?
+                        user.playerinfo = user.playerinfo or {}
+                        if self:conf().roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money") then
+                            user.playerinfo.balance = user.money
+                        elseif self:conf().roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
+                            user.playerinfo.balance = user.coin
+                        end
+                        log.debug("userInto(), uid=%s, money=%s, coin=%s, userMoney=%s", uid, user.money, user.coin,
+                            user.playerinfo.balance)
                     end
 
                     -- 防止协程返回时，玩家实质上已离线
@@ -1030,7 +1129,7 @@ function Room:userInto(uid, linkid, rev)
                                 pb.enum_id("network.inter.Game2MutexSubCmd", "Game2MutexSubCmd_MutexRemove"),
                                 pb.encode(
                                     "network.cmd.PBMutexRemove",
-                                    {uid = uid, srvid = global.sid(), roomid = self.id}
+                                    { uid = uid, srvid = global.sid(), roomid = self.id }
                                 )
                             )
                         end
@@ -1059,10 +1158,11 @@ function Room:userInto(uid, linkid, rev)
                         self.state,
                         self:getUserMoney(uid)
                     )
+
                     if self.needGetFreeSpinTimes then
                         -- 获取玩家其它信息(免费旋转次数)
                         user.co2 =
-                            coroutine.create(
+                        coroutine.create(
                             function(user)
                                 -- 查询剩余免费旋转次数
                                 GetUserKVData(user.uid, self.mid, self.id)
@@ -1072,6 +1172,53 @@ function Room:userInto(uid, linkid, rev)
                                     --关闭定时器
                                     timer.cancel(user.TimerID_FreeSpinTimes, TimerID.TimerID_FreeSpinTimes[1]) -- 关闭定时器
                                 end
+
+                                t.data.playerinfo.uid = user.uid
+                                t.data.playerinfo.nickurl = user.nickurl
+                                t.data.playerinfo.username = user.username
+                                t.data.playerinfo.balance = self:getUserMoney(uid)
+
+                                t.data.playerinfo.viplv = user.viplv
+                                t.data.playerinfo.extra = {}
+                                t.data.playerinfo.extra.ip = user.ip or ""
+                                t.data.playerinfo.extra.api = user.api or ""
+
+                                t.data.currentBet = self.bet or 0
+
+                                if self.freeSpinTimes == 0 or self.freeSpinTimes == self.totalFreeSpinTimes then
+                                    t.data.lastWin = self.lastWin or 0
+                                end
+
+                                self.uid = user.uid
+                                local resp = pb.encode("network.cmd.PBSlotIntoRoomResp_S", t)
+                                local to = {
+                                    uid = uid,
+                                    srvid = global.sid(),
+                                    roomid = self.id,
+                                    matchid = self.mid,
+                                    maincmd = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                                    subcmd = pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotIntoRoomResp"),
+                                    data = resp
+                                }
+
+                                log.debug(
+                                    "idx(%s,%s,%s) userInto(),uid=%s,intoRoom success! t=%s ",
+                                    self.id,
+                                    self.mid,
+                                    tostring(self.logid),
+                                    uid,
+                                    cjson.encode(t)
+                                )
+                                local synto = pb.encode("network.cmd.PBServerSynGame2ASAssignRoom", to)
+
+                                net.shared(
+                                    linkid,
+                                    pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2AS"),
+                                    pb.enum_id("network.inter.Game2ASSubCmd", "Game2ASSubCmd_SysAssignRoom"),
+                                    synto
+                                )
+
+
                             end
                         )
                         --设置定时器
@@ -1080,56 +1227,58 @@ function Room:userInto(uid, linkid, rev)
                             TimerID.TimerID_FreeSpinTimes[1],
                             TimerID.TimerID_FreeSpinTimes[2],
                             onGetFreeSpinTimes,
-                            {uid, self}
+                            { uid, self }
                         )
                         -- 执行协程
                         coroutine.resume(user.co2, user)
+
+                    else
+
+                        t.data.playerinfo.uid = user.uid
+                        t.data.playerinfo.nickurl = user.nickurl
+                        t.data.playerinfo.username = user.username
+                        t.data.playerinfo.balance = self:getUserMoney(uid)
+
+                        t.data.playerinfo.viplv = user.viplv
+                        t.data.playerinfo.extra = {}
+                        t.data.playerinfo.extra.ip = user.ip or ""
+                        t.data.playerinfo.extra.api = user.api or ""
+
+                        t.data.currentBet = self.bet or 0
+
+                        if self.freeSpinTimes == 0 or self.freeSpinTimes == self.totalFreeSpinTimes then
+                            t.data.lastWin = self.lastWin or 0
+                        end
+
+                        self.uid = user.uid
+                        local resp = pb.encode("network.cmd.PBSlotIntoRoomResp_S", t)
+                        local to = {
+                            uid = uid,
+                            srvid = global.sid(),
+                            roomid = self.id,
+                            matchid = self.mid,
+                            maincmd = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                            subcmd = pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotIntoRoomResp"),
+                            data = resp
+                        }
+
+                        log.debug(
+                            "idx(%s,%s,%s) userInto(),uid=%s intoRoom success!! t=%s ",
+                            self.id,
+                            self.mid,
+                            tostring(self.logid),
+                            uid,
+                            cjson.encode(t)
+                        )
+                        local synto = pb.encode("network.cmd.PBServerSynGame2ASAssignRoom", to)
+
+                        net.shared(
+                            linkid,
+                            pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2AS"),
+                            pb.enum_id("network.inter.Game2ASSubCmd", "Game2ASSubCmd_SysAssignRoom"),
+                            synto
+                        )
                     end
-
-                    t.data.playerinfo.uid = user.uid
-                    t.data.playerinfo.nickurl = user.nickurl
-                    t.data.playerinfo.username = user.username
-                    t.data.playerinfo.balance = self:getUserMoney(uid)
-
-                    t.data.playerinfo.viplv = user.viplv
-                    t.data.playerinfo.extra = {}
-                    t.data.playerinfo.extra.ip = user.ip or ""
-                    t.data.playerinfo.extra.api = user.api or ""
-
-                    t.data.currentBet = self.bet or 0
-
-                    if self.freeSpinTimes == 0 or self.freeSpinTimes == self.totalFreeSpinTimes then
-                        t.data.lastWin = 0
-                    end
-
-                    self.uid = user.uid
-                    local resp = pb.encode("network.cmd.PBSlotIntoRoomResp_S", t)
-                    local to = {
-                        uid = uid,
-                        srvid = global.sid(),
-                        roomid = self.id,
-                        matchid = self.mid,
-                        maincmd = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-                        subcmd = pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotIntoRoomResp"),
-                        data = resp
-                    }
-
-                    log.debug(
-                        "idx(%s,%s,%s) uid=%s intoRoom success! t=%s ",
-                        self.id,
-                        self.mid,
-                        tostring(self.logid),
-                        uid,
-                        cjson.encode(t)
-                    )
-                    local synto = pb.encode("network.cmd.PBServerSynGame2ASAssignRoom", to)
-
-                    net.shared(
-                        linkid,
-                        pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2AS"),
-                        pb.enum_id("network.inter.Game2ASSubCmd", "Game2ASSubCmd_SysAssignRoom"),
-                        synto
-                    )
                 end
             )
             timer.tick(
@@ -1137,12 +1286,12 @@ function Room:userInto(uid, linkid, rev)
                 TimerID.TimerID_Timeout[1],
                 TimerID.TimerID_Timeout[2],
                 onTimeout,
-                {uid, self}
+                { uid, self }
             )
             coroutine.resume(user.co, user)
         end
     )
-    timer.tick(user.TimerID_MutexTo, TimerID.TimerID_MutexTo[1], TimerID.TimerID_MutexTo[2], onMutexTo, {uid, self})
+    timer.tick(user.TimerID_MutexTo, TimerID.TimerID_MutexTo[1], TimerID.TimerID_MutexTo[2], onMutexTo, { uid, self })
     coroutine.resume(user.mutex, user)
 end
 
@@ -1152,10 +1301,13 @@ function Room:userLeave(uid, linkid)
         code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_LeaveGameSuccess")
     }
     log.info("idx(%s,%s,%s) userLeave(), uid=%s", self.id, self.mid, tostring(self.logid), uid)
+    if not linkid then
+        return
+    end
 
     local function handleFailed()
         local resp =
-            pb.encode(
+        pb.encode(
             "network.cmd.PBLeaveGameRoomResp_S",
             {
                 code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_LeaveGameFailed") -- 离开失败
@@ -1184,30 +1336,30 @@ function Room:userLeave(uid, linkid)
 
     user.state = EnumUserState.Leave
 
-    if user.gamecount and user.gamecount > 0 then -- 该玩家玩的局数
-        Statistic:appendRoomLogs( --
-            {
-                uid = uid,
-                time = global.ctsec(), -- 当前时刻
-                roomtype = self.conf.roomtype,
-                gameid = global.stype(),
-                serverid = global.sid(),
-                roomid = self.id,
-                smallblind = self.conf.ante,
-                seconds = global.ctsec() - (user.intots or 0),
-                changed = 0,
-                roomname = self.conf.name,
-                gamecount = user.gamecount,
-                matchid = self.mid,
-                api = tonumber(user.api) or 0
-            }
-        )
-    end
+    -- if user.gamecount and user.gamecount > 0 then -- 该玩家玩的局数
+    --     Statistic:appendRoomLogs( --
+    --         {
+    --             uid = uid,
+    --             time = global.ctsec(), -- 当前时刻
+    --             roomtype = self.confInfo.roomtype,
+    --             gameid = global.stype(),
+    --             serverid = global.sid(),
+    --             roomid = self.id,
+    --             smallblind = self.confInfo.ante,
+    --             seconds = global.ctsec() - (user.intots or 0),
+    --             changed = 0,
+    --             roomname = self.confInfo.name,
+    --             gamecount = user.gamecount,
+    --             matchid = self.mid,
+    --             api = tonumber(user.api) or 0
+    --         }
+    --     )
+    -- end
 
     mutex.request(
         pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Mutex"),
         pb.enum_id("network.inter.Game2MutexSubCmd", "Game2MutexSubCmd_MutexRemove"),
-        pb.encode("network.cmd.PBMutexRemove", {uid = uid, srvid = global.sid(), roomid = self.id})
+        pb.encode("network.cmd.PBMutexRemove", { uid = uid, srvid = global.sid(), roomid = self.id })
     )
     -- 如果和进入时的免费旋转次数不同或押注金额不同时才更新  待优化
     SetUserKVData(
@@ -1217,7 +1369,8 @@ function Room:userLeave(uid, linkid)
         self.mid,
         self.id,
         self.totalFreeSpinTimes,
-        self.totalFreeSpinWin
+        self.totalFreeSpinWin,
+        self.winMoney
     )
     self.lastWin = 0
     local resp = pb.encode("network.cmd.PBLeaveGameRoomResp_S", t)
@@ -1232,12 +1385,14 @@ function Room:userLeave(uid, linkid)
         data = resp
     }
     local synto = pb.encode("network.cmd.PBServerSynGame2ASAssignRoom", to)
-    net.shared(
-        linkid,
-        pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2AS"),
-        pb.enum_id("network.inter.Game2ASSubCmd", "Game2ASSubCmd_SysAssignRoom"),
-        synto
-    )
+    if linkid then
+        net.shared(
+            linkid,
+            pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2AS"),
+            pb.enum_id("network.inter.Game2ASSubCmd", "Game2ASSubCmd_SysAssignRoom"),
+            synto
+        )
+    end
 
     if user.TimerID_Timeout then
         timer.destroy(user.TimerID_Timeout)
@@ -1249,135 +1404,89 @@ function Room:userLeave(uid, linkid)
         timer.destroy(user.TimerID_FreeSpinTimes)
     end
 
-    local resp =
-        pb.encode(
-        "network.cmd.PBLeaveGameRoomResp_S",
-        {
-            code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_LeaveGameSuccess"), -- 成功离开房间
-            hands = user.gamecount or 0, --从进入到离开玩的局数
-            profits = 0, -- 总收益
-            roomtype = self.conf.roomtype -- 房间类型
-        }
-    )
-    net.send(
-        linkid,
-        uid,
-        pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-        pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_LeaveGameRoomResp"),
-        resp
-    )
-    log.info(
-        "idx(%s,%s,%s) userLeave() success: uid=%s, gamecount=%s",
-        self.id,
-        self.mid,
-        tostring(self.logid),
-        uid,
-        user.gamecount or 0
-    )
+    -- local resp =
+    --     pb.encode(
+    --     "network.cmd.PBLeaveGameRoomResp_S",
+    --     {
+    --         code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_LeaveGameSuccess"), -- 成功离开房间
+    --         hands = user.gamecount or 0, --从进入到离开玩的局数
+    --         profits = 0, -- 总收益
+    --         roomtype = self.confInfo.roomtype -- 房间类型
+    --     }
+    -- )
+    -- net.send(
+    --     linkid,
+    --     uid,
+    --     pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+    --     pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_LeaveGameRoomResp"),
+    --     resp
+    -- )
+    -- log.info(
+    --     "idx(%s,%s,%s) userLeave() success: uid=%s, gamecount=%s",
+    --     self.id,
+    --     self.mid,
+    --     tostring(self.logid),
+    --     uid,
+    --     user.gamecount or 0
+    -- )
 
     self.uid = 0
     self.users[uid] = nil
     self.user_cached = false
+    self:reset()
 
-    MatchMgr:getMatchById(self.conf.mid):shrinkRoom()
+    -- MatchMgr:getMatchById(self.confInfo.mid):shrinkRoom()
 end
 
 function Room:userTableInfo(uid, linkid, rev)
     log.info("idx(%s,%s) userTableInfo(), uid:%s", self.id, self.mid, uid)
-
-    local t = {
-        -- 对应 PBSlotIntoRoomResp_S 消息
-        code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameSuccess"),
-        gameid = global.stype(), -- 游戏ID  43-Slot
-        idx = {
-            srvid = global.sid(), -- 服务器ID ?
-            roomid = self.id, -- 房间ID
-            matchid = self.mid, -- 房间级别 (1：初级场  2：中级场  3：高级场)
-            roomtype = self.conf.roomtype or 0
-        },
-        data = {
-            state = self.state, -- 当前房间状态
-            betList = self.conf.chips or {10, 100, 500, 1000, 10000}, -- 下注列表
-            jackPot = JackpotMgr:getJackpotById(self.conf.jpid) or 0, -- 奖池
-            playerinfo = {}, -- 玩家信息
-            lastWin = self.lastWin or 0, -- 最后一次摇奖中奖信息
-            autoSpinTimes = 0, -- 自动旋转次数
-            freeSpinTimes = self.freeSpinTimes or 0,
-            currentBet = self.bet or 0,
-            cards = self.cards or {}, -- 牌数据(共15张)
-            autoSpinList = self.conf.autoSPinList or {2, 5, 10, 20}, -- 自动旋转次数
-            jpid = self.conf.jpid or 21,
-            lineNum = SLOT_CONF.lineNum or 10, -- 线条总数
-            totalFreeSpinTimes = self.totalFreeSpinTimes or 0 -- 总的免费旋转次数
-        } --data
-    } --t
-
-    if self.uid ~= uid then
-        return false
-    end
-
-    local user = self.users[uid]
-    if user then
-        t.data.playerinfo.uid = user.uid
-        t.data.playerinfo.nickurl = user.nickurl
-        t.data.playerinfo.username = user.username
-        t.data.playerinfo.balance = self:getUserMoney(uid)
-        t.data.playerinfo.viplv = user.viplv
-        t.data.playerinfo.extra = {}
-        t.data.playerinfo.extra.ip = user.ip or ""
-        t.data.playerinfo.extra.api = user.api or ""
-    end
-    if self.freeSpinTimes == 0 or self.freeSpinTimes == self.totalFreeSpinTimes then
-        t.data.lastWin = 0
-    end
-
-    net.send(
-        linkid,
-        uid,
-        pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-        pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotIntoRoomResp"),
-        pb.encode("network.cmd.PBSlotIntoRoomResp_S", t)
-    )
+    local intoRev = { gameid = 43, matchid = rev.idx.matchid, roomid = rev.idx.roomid, serverid = rev.idx.srvid }
+    return self:userInto(uid, linkid, intoRev)
 end
 
 function Room:reset()
     self.sdata = {
-        --moneytype = self.conf.moneytype,
-        roomtype = self.conf.roomtype,
-        tag = self.conf.tag
+        --moneytype = self.confInfo.moneytype,
+        roomtype = self:conf().roomtype,
+        tag = self.confInfo.tag,
+        cards = { { cards = {} } }
     }
     self.reviewlogitems = {}
 end
 
 function Room:start()
-    self:reset()
+    --self:reset()
 end
 
 -- 检测是否可操作
 function Room:checkCanChipin()
-    local currentTime = global.ctsec()  -- 当前时刻(秒)
-    if currentTime - self.stateBeginTime > 30 then 
-        self.state = 0
+    local currentTime = global.ctsec() -- 当前时刻(秒)
+    if currentTime - self.stateBeginTime > 30 then
+        self.state = EnumRoomState.Check -- 房间状态
         self.stateBeginTime = currentTime
     end
-    return self.state == 0
+    return self.state == EnumRoomState.Check
 end
 
 -- 旋转操作
+-- 参数 type: 未使用该参数
+-- 参数 money: 押注金额
+-- 参数 linkid:
 function Room:userchipin(uid, type, money, linkid)
     log.info(
-        "idx(%s,%s,%s) userchipin(): uid=%s, type=%s, money=%s, freeSpinTimes=%s",
+        "idx(%s,%s,%s) userchipin(): uid=%s, type=%s, money=%s, freeSpinTimes=%s,state=%s",
         self.id,
         self.mid,
         tostring(self.logid),
         tostring(uid),
         tostring(type),
         tostring(money),
-        tostring(self.freeSpinTimes)
+        tostring(self.freeSpinTimes),
+        self.state
     )
-    self.logid = self.statistic:genLogId(self.starttime) or self.logid
 
-    local t = {
+
+    self.t = {
         -- 待返回的结构  PBSlotSpinResp_S
         code = pb.enum_id("network.cmd.EnumBetErrorCode", "EnumBetErrorCode_Succ"), -- 默认成功
         bet = money, --本轮下注金额(底注) 免费下注也需要填
@@ -1400,9 +1509,9 @@ function Room:userchipin(uid, type, money, linkid)
     money = money or 0
 
     if uid ~= self.uid then
-        t.code = pb.enum_id("network.cmd.EnumBetErrorCode", "EnumBetErrorCode_InvalidUser") -- 玩家无效
+        self.t.code = pb.enum_id("network.cmd.EnumBetErrorCode", "EnumBetErrorCode_InvalidUser") -- 玩家无效
 
-        local resp = pb.encode("network.cmd.PBSlotSpinResp_S", t)
+        local resp = pb.encode("network.cmd.PBSlotSpinResp_S", self.t)
         net.send(
             linkid,
             uid,
@@ -1410,15 +1519,14 @@ function Room:userchipin(uid, type, money, linkid)
             pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotSpinResp"), -- 旋转回应
             resp
         )
-        log.debug("idx(%s,%s) user %s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
+        log.debug("idx(%s,%s) userchipin(),uid=%s, PBSlotSpinResp_S=%s", self.id, self.mid, uid, cjson.encode(self.t))
         return
     end
-    local user = self.users[uid] -- 根据玩家ID获取玩家对象
 
     if not self:checkCanChipin() then
-        t.code = pb.enum_id("network.cmd.EnumBetErrorCode", "EnumBetErrorCode_InvalidGameState") -- 状态不对
+        self.t.code = pb.enum_id("network.cmd.EnumBetErrorCode", "EnumBetErrorCode_InvalidGameState") -- 状态不对
 
-        local resp = pb.encode("network.cmd.PBSlotSpinResp_S", t)
+        local resp = pb.encode("network.cmd.PBSlotSpinResp_S", self.t)
         net.send(
             linkid,
             uid,
@@ -1426,17 +1534,39 @@ function Room:userchipin(uid, type, money, linkid)
             pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotSpinResp"), -- 旋转回应
             resp
         )
-        log.debug("idx(%s,%s) user %s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
+        log.debug("idx(%s,%s) userchipin(),uid=%s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(self.t))
         return
     end
-    self.state = 1   -- 正在下注
-    self.stateBeginTime = global.ctsec()  -- 该状态开始时刻 
+    self.linkid = linkid
+
+    if self.freeSpinTimes <= 0 then -- 如果当前不是免费旋转
+        self.currentIsFreeSpin = false -- 当前这一局不是免费旋转局
+        self.index = 1
+        self.winMoney = 0
+        self.logid = self.statistic:genLogId(self.starttime) or self.logid
+        self.beginMoney = self:getUserMoney(uid)
+
+        self.start_time = global.ctms()
+        self.starttime = self.start_time / 1000 -- 开始时刻(秒)
+        self.gamelog.stime = self.starttime
+        -- self.statis
+    else
+        self.currentIsFreeSpin = true -- 当前这一局是免费旋转
+        self.index = self.index + 1
+    end
+
+    local user = self.users[uid] -- 根据玩家ID获取玩家对象
+
+
+    --self.state = EnumRoomState.Betting   --1   -- 正在下注
+    self.state = EnumRoomState.Show
+    self.stateBeginTime = global.ctsec() -- 该状态开始时刻
 
     -- 判断玩家身上筹码是否足够下注
     if 0 == self.freeSpinTimes and self:getUserMoney(uid) < money then
-        t.code = pb.enum_id("network.cmd.EnumBetErrorCode", "EnumBetErrorCode_OverBalance") -- 金额不足
+        self.t.code = pb.enum_id("network.cmd.EnumBetErrorCode", "EnumBetErrorCode_OverBalance") -- 金额不足
 
-        local resp = pb.encode("network.cmd.PBSlotSpinResp_S", t)
+        local resp = pb.encode("network.cmd.PBSlotSpinResp_S", self.t)
         net.send(
             linkid,
             uid,
@@ -1444,21 +1574,22 @@ function Room:userchipin(uid, type, money, linkid)
             pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotSpinResp"), -- 旋转回应
             resp
         )
-        log.info("idx(%s,%s) user %s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
-        self.state = 0
-        self.stateBeginTime = global.ctsec()  -- 该状态开始时刻 
+        log.info("idx(%s,%s) userchipin(),uid=%s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(self.t))
+        self.state = EnumRoomState.Check
+        self.stateBeginTime = global.ctsec() -- 该状态开始时刻
         return
     end
 
     -- 下面是可以下注旋转的情况
     local curday = global.cdsec() -- 当天标志
-    log.debug("userchipin(), userMoney = %s, uid=%s", self:getUserMoney(self.uid), self.uid)
-    self.starttime = global.ctsec()
 
-    if self.freeSpinTimes > 0 then
+    -- 打印该局游戏前身上金额
+    log.debug("userchipin(),uid=%s,userMoney=%s,self.winMoney=%s", self.uid, self:getUserMoney(self.uid), self.winMoney)
+
+    if self.freeSpinTimes > 0 then -- 如果当前是免费旋转
         -- 免费玩
         self.freeSpinTimes = self.freeSpinTimes - 1
-        t.isFreeSpin = true
+        self.t.isFreeSpin = true
         if not self.lastSpinIsFree then -- 如果上一局是自费旋转，这一局才是免费旋转
             self.beginFreeSpinMoney = self:getUserMoney(self.uid) -- 第一次免费旋转时才保存开始免费旋转时的金额
             self.totalFreeSpinWin = 0
@@ -1466,9 +1597,11 @@ function Room:userchipin(uid, type, money, linkid)
             self.lastSpinIsFree = true
         end
         money = self.bet or money
+        self.users[self.uid] = self.users[self.uid] or {}
+        self.users[self.uid].totalbet = self.bet
     else
         -- 自费玩
-        t.isFreeSpin = false
+        self.t.isFreeSpin = false
         self.bet = money -- 下注金额
         self.lastSpinIsFree = false
         self.total_bets[curday] = (self.total_bets[curday] or 0) + money -- 增加下注金额
@@ -1479,10 +1612,21 @@ function Room:userchipin(uid, type, money, linkid)
             tostring(self.total_bets[curday]),
             self.bet
         )
+        self.users[self.uid] = self.users[self.uid] or {}
+        self.users[self.uid].totalbet = money
 
         -- 扣除费用
         self:subUserMoney(self.uid, self.bet)
-        if not self.conf.isib then
+
+        self.beginMoney = self:getUserMoney(uid) -- 下注后，玩家身上金额
+        --self.endMoney = self.beginMoney -- 当前玩家身上金额
+
+        -- 下注后身上金额
+        log.debug("userchipin(),uid=%s,userMoney=%s,bet=%s,self.winMoney=%s", self.uid, self:getUserMoney(self.uid),
+            self.bet, self.winMoney)
+
+        if not self:conf().isib then -- 如果不是indibet版本
+            log.debug("idx(%s,%s) userchipin(),uid=%s,isib=false,self.bet=%s", self.id, self.mid, self.uid or 0, self.bet)
             Utils:walletRpc(
                 uid,
                 user.api,
@@ -1490,7 +1634,7 @@ function Room:userchipin(uid, type, money, linkid)
                 -1 * self.bet,
                 pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_BET"),
                 linkid,
-                self.conf.roomtype,
+                self.confInfo.roomtype,
                 self.id,
                 self.mid,
                 {
@@ -1502,39 +1646,56 @@ function Room:userchipin(uid, type, money, linkid)
                     gameId = tostring(global.stype())
                 }
             )
+        else
+            log.debug("idx(%s,%s) userchipin(),uid=%s,isib=true", self.id, self.mid, self.uid or 0)
+            -- 减少身上金额
+            Utils:debit(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_BET"))
+            Utils:balance(self, EnumUserState.Playing)
+            for uid, user in pairs(self.users) do
+                if user and Utils:isRobot(user.api) then
+                    user.isdebiting = false
+                end
+            end
         end
     end
 
     --随机生成结果
-    if self.lastSpinIsFree then
+    if self.lastSpinIsFree then -- 如果上一局是免费旋转
         self.cards = GetCards(SLOT_CONF, 4)
     else
-        --self.cards = GetCards(SLOT_CONF, self.conf.mid)
+        --self.cards = GetCards(SLOT_CONF, self.confInfo.mid)
         self:getFinalCards()
     end
-    timer.tick(self.timer, TimerID.TimerID_Wallet[1], TimerID.TimerID_Wallet[2], onWalletTimeout, {self, t, linkid})
+
+    if self.currentIsFreeSpin then
+        self:doResult(self.t, self.linkid)
+    else
+        self.needSendCards = true
+    end
+    --timer.tick(self.timer, TimerID.TimerID_Wallet[1], TimerID.TimerID_Wallet[2], onWalletTimeout, { self, t, linkid })
 
     return true
 end
 
+-- 处理游戏结果
 function Room:doResult(t, linkid)
     local needSendResult = true
-    if not self.conf.single_profit_switch then -- 如果不是单人控制
-        local msg = {ctx = 0, matchid = self.mid, roomid = self.id, data = {}}
-        table.insert(msg.data, {uid = self.uid, chips = self.bet or 0, betchips = self.bet or 0})
+    if not self.confInfo.single_profit_switch then -- 如果不是单人控制
+        local msg = { ctx = 0, matchid = self.mid, roomid = self.id, data = {} }
+        table.insert(msg.data, { uid = self.uid, chips = self.bet or 0, betchips = self.bet or 0 })
         log.debug("idx(%s,%s) start result request %s", self.id, self.mid, cjson.encode(msg))
         Utils:queryProfitResult(msg)
     end
-    if self.conf.single_profit_switch then -- 如果是单人控制
+    if self.confInfo.single_profit_switch then -- 如果是单人控制
         log.debug("uid=%s, single_profit_switch==true", self.uid)
         needSendResult = false
         self.result_co =
-            coroutine.create(
+        coroutine.create(
             function()
-                local msg = {ctx = 0, matchid = self.mid, roomid = self.id, data = {}}
+                local msg = { ctx = 0, matchid = self.mid, roomid = self.id, data = {} }
                 table.insert(
                     msg.data,
-                    {uid = self.uid, chips = self.bet or 0, betchips = self.bet or 0}
+                    { uid = self.uid, chips = self.bet or 0, betchips = self.bet or 0 }
                 )
                 log.debug("idx(%s,%s) start result request %s", self.id, self.mid, cjson.encode(msg))
                 Utils:queryProfitResult(msg)
@@ -1549,9 +1710,9 @@ function Room:doResult(t, linkid)
                         log.debug("uid=%s, r=%s, maxwin=%s", tostring(uid), tostring(r), tostring(maxwin))
                         if uid and uid == self.uid and r then
                             local realPlayerWinMin = 0x7FFFFFFF
-                            local minCards = self.cards  -- 记录玩家输的牌
+                            local minCards = self.cards -- 记录玩家输的牌
                             local hasFind = false
-                            for i = 0, 10, 1 do
+                            for i = 0, 20, 1 do
                                 -- 根据牌数据计算真实玩家的输赢值
                                 local realPlayerWin = self:GetRealPlayerWin()
                                 log.debug(
@@ -1561,27 +1722,40 @@ function Room:doResult(t, linkid)
                                     tostring(i),
                                     tostring(realPlayerWin)
                                 )
-                                if realPlayerWin < realPlayerWinMin then
+                                if 0x7FFFFFFF == realPlayerWinMin then
                                     realPlayerWinMin = realPlayerWin
                                     minCards = self.cards
                                 end
-                                if r > 0 and maxwin then
-                                    if maxwin >= realPlayerWin and realPlayerWin > 0 then
-                                        hasFind = true
-                                        break
+
+                                if r > 0 and maxwin then  -- 需要真实玩家赢
+                                    if maxwin >= realPlayerWin then
+                                        if realPlayerWin > 0 then
+                                            hasFind = true
+                                            break
+                                        elseif realPlayerWinMin < realPlayerWin then
+                                            realPlayerWinMin = realPlayerWin
+                                            minCards = self.cards
+                                        end                                    
                                     end
                                 elseif r < 0 then -- 真实玩家输
                                     if realPlayerWin < 0 then
                                         hasFind = true
                                         break
+                                    elseif realPlayerWin < realPlayerWinMin then
+                                        realPlayerWinMin = realPlayerWin
+                                        minCards = self.cards
                                     end
                                 elseif r == 0 and maxwin then
                                     if maxwin >= realPlayerWin then
                                         hasFind = true
                                         break
+                                    elseif realPlayerWin < realPlayerWinMin then
+                                        realPlayerWinMin = realPlayerWin
+                                        minCards = self.cards
                                     end
                                 else
                                     if realPlayerWin < 0x7FFF0000 then
+                                        minCards = self.cards
                                         break
                                     end
                                 end
@@ -1590,10 +1764,10 @@ function Room:doResult(t, linkid)
                                     self.cards = GetCards(SLOT_CONF, 4)
                                 else
                                     --self:getFinalCards()
-                                    self.cards = GetCards(SLOT_CONF, self.conf.mid)
+                                    self.cards = GetCards(SLOT_CONF, self.confInfo.mid)
                                 end
                             end -- for
-                            if not hasFind then  -- 如果未找出匹配的牌
+                            if not hasFind then -- 如果未找出匹配的牌
                                 self.cards = minCards
                             end
                         end
@@ -1606,7 +1780,7 @@ function Room:doResult(t, linkid)
                 self:sendResult(self.uid, t, linkid)
             end
         )
-        timer.tick(self.timer, TimerID.TimerID_Result[1], TimerID.TimerID_Result[2], onResultTimeout, {self})
+        timer.tick(self.timer, TimerID.TimerID_Result[1], TimerID.TimerID_Result[2], onResultTimeout, { self })
         coroutine.resume(self.result_co)
     end
 
@@ -1626,7 +1800,7 @@ function Room:userJackPotResp(uid, rev)
                 bonus = rev.value, -- 奖金
                 roomtype = rev.roomtype,
                 sb = self.ante,
-                ante = self.conf.ante,
+                ante = self.confInfo.ante,
                 pokertype = rev.wintype,
                 gameid = global.stype()
             }
@@ -1638,7 +1812,7 @@ function Room:userJackPotResp(uid, rev)
     end
 
     log.debug(
-        "idx(%s,%s,%s) userJackPotResp:%s,%s,%s,%s",
+        "idx(%s,%s,%s) userJackPotResp(),uid=%s,roomtype=%s,value=%s,jackpot=%s",
         self.id,
         self.mid,
         tostring(self.logid),
@@ -1648,11 +1822,11 @@ function Room:userJackPotResp(uid, rev)
         jackpot
     )
 
-    if self.sdata.jp and self.sdata.jp.uid and self.sdata.jp.uid == uid and self.jackpot_and_showcard_flags then
+    if self.gamelog.jp and self.gamelog.jp.uid and self.gamelog.jp.uid == uid and self.jackpot_and_showcard_flags then
         self.jackpot_and_showcard_flags = false
         pb.encode(
             "network.cmd.PBGameJackpotAnimation_N", -- 通知播放中jackpot奖励动画
-            {data = {sid = 0, uid = uid, delta = value, wintype = 0}},
+            { data = { sid = 0, uid = uid, delta = value, wintype = 0 } },
             function(pointer, length)
                 self:sendCmdToPlayingUsers(
                     pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
@@ -1663,15 +1837,16 @@ function Room:userJackPotResp(uid, rev)
             end
         )
         log.info(
-            "idx(%s,%s,%s) jackpot animation is to be playing %s,%s,%s,%s",
+            "idx(%s,%s,%s) jackpot animation is to be playing %s,%s,%s",
             self.id,
             self.mid,
             tostring(self.logid),
-            0,
             uid,
             value,
             0
         )
+    else
+        log.debug("uid=%s,jackpot_and_showcard_flags=%s", self.uid, tostring(self.jackpot_and_showcard_flags))
     end
 
     if uid == self.uid then -- 2021-11-29
@@ -1682,43 +1857,56 @@ function Room:userJackPotResp(uid, rev)
 
         -- 直接更新玩家身上金额
         if value > 0 then
-            --self.total_profit[curday] = (self.total_profit[curday] or 0) + winMoney -- 线条中奖总金额
-            Utils:walletRpc(
-                uid,
-                user.api,
-                user.ip,
-                value,
-                pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE"),
-                user.linkid,
-                self.conf.roomtype,
-                self.id,
-                self.mid,
-                {
-                    api = "debit",
-                    sid = user.sid or 1,
-                    userId = user.userId,
-                    transactionId = g.uuid(),
-                    roundId = user.roundId,
-                    gameId = tostring(global.stype())
-                }
-            )
+            self.winMoney = self.winMoney + value -- 本局赢取到的金额
+            local curday = global.cdsec() -- 当天标志
+            self.total_profit[curday] = (self.total_profit[curday] or 0) + value
+            log.debug("userJackPotResp(),uid=%s,userMoney=%s,jackpotValue=%s,self.winMoney=%s", self.uid,
+                self:getUserMoney(self.uid), value, self.winMoney)
         end
+
         if self.needJackPotResult then
             self.needJackPotResult = false
-            self.state = 0
-            self.stateBeginTime = global.ctsec()  -- 该状态开始时刻 
+            timer.cancel(self.timer, TimerID.TimerID_WaitJackpotResult[1]) -- 关闭定时器
+            self.state = EnumRoomState.Check
+            self.stateBeginTime = global.ctsec() -- 该状态开始时刻
+
+            -- 检测是否需要更新金额
+            if not self.users[self.uid].isdebiting and self.freeSpinTimes <= 0 and not self.needJackPotResult then -- 如果下一局不是免费旋转且未中jackpot
+                self.users[uid] = self.users[uid] or {}
+                self.users[uid].totalprofit = self.winMoney
+                Utils:credit(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE")) -- 增加金额(输赢都更新金额)
+                log.debug("Utils:credit(),uid=%s,self.winMoney=%s,userMoney=%s,jackpot ret", uid, self.winMoney,
+                    self:getUserMoney(uid))
+
+                log.debug("uid=%s,self.sdata.jp=%s", self.uid, cjson.encode(self.sdata.jp))
+
+                self.sdata.users = self.sdata.users or {}
+                self.sdata.users[uid] = self.sdata.users[uid] or {}
+                self.sdata.users[uid].totalprofit = self.winMoney
+                self.sdata.users[uid].totalpureprofit = self.winMoney - self.bet
+
+                self.statistic:appendLogs(self.sdata, self.logid) -- 统计信息
+                self:reset()
+
+                self.winMoney = 0
+                self.sdata.jp = {}
+                Utils:serializeMiniGame(SLOT_INFO, nil, global.stype())
+            end
         end
     end
 
-    Utils:broadcastSysChatMsgToAllUsers(self.notify_jackpot_msg)
-    self.notify_jackpot_msg = nil
+
+    timer.tick(self.timer, TimerID.TimerID_BroadCastMsg[1], TimerID.TimerID_BroadCastMsg[2], onBroadcastMsg, self)
+    -- -- 延迟广播中jackpot消息
+    --  Utils:broadcastSysChatMsgToAllUsers(self.notify_jackpot_msg)
+    --  self.notify_jackpot_msg = nil
 
     return true
 end
 
 -- 根据jackpot id获取对应房间
 function Room:getJackpotId(id)
-    return id == self.conf.jpid and self or nil
+    return id == self.confInfo.jpid and self or nil
 end
 
 -- 通知所有玩家当前Jackpot值
@@ -1726,7 +1914,7 @@ function Room:onJackpotUpdate(jackpot)
     log.debug("(%s,%s,%s)notify client for jackpot change %s", self.id, self.mid, tostring(self.logid), jackpot)
     pb.encode(
         "network.cmd.PBGameNotifyJackPot_N",
-        {jackpot = jackpot},
+        { jackpot = jackpot },
         function(pointer, length)
             self:sendCmdToPlayingUsers(
                 pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
@@ -1761,6 +1949,14 @@ function Room:phpMoneyUpdate(uid, rev)
             tostring(rev.money),
             tostring(rev.coin)
         )
+        user.playerinfo = user.playerinfo or {}
+        if self:conf().roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money") then
+            user.playerinfo.balance = user.money
+        elseif self:conf().roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
+            user.playerinfo.balance = user.coin
+        end
+
+
     end
 end
 
@@ -1787,26 +1983,94 @@ function Room:tools(jdata)
     end
 end
 
+-- function Room:userWalletResp(rev)
+--     if not rev.data or #rev.data == 0 then
+--         return
+--     end
+--     for _, v in ipairs(rev.data) do
+--         local user = self.users[v.uid]
+--         log.info("(%s,%s,%s) userWalletResp %s", self.id, self.mid, tostring(self.logid), cjson.encode(rev))
+--         if user then
+--             if v.code > 0 then
+--                 if
+--                     not self.confInfo.roomtype or
+--                         self.confInfo.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money")
+--                  then
+--                     user.money = v.money
+--                 elseif self.confInfo.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
+--                     user.coin = v.coin
+--                 end
+--             end
+--         else
+--             Utils:transferRepay(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_RETURNCHIPS"), v)
+--         end
+--     end
+-- end
+
+
 function Room:userWalletResp(rev)
     if not rev.data or #rev.data == 0 then
         return
     end
     for _, v in ipairs(rev.data) do
         local user = self.users[v.uid]
-        log.info("(%s,%s,%s) userWalletResp %s", self.id, self.mid, tostring(self.logid), cjson.encode(rev))
-        if user then
-            if v.code > 0 then
-                if
-                    not self.conf.roomtype or
-                        self.conf.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money")
-                 then
-                    user.money = v.money
-                elseif self.conf.roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
-                    user.coin = v.coin
+        if user and not Utils:isRobot(user.api) then
+            log.info("(%s,%s) userWalletResp() rev=%s", self.id, self.mid, cjson.encode(rev))
+        end
+        if v.code >= 0 then
+            if user then
+                if not Utils:isRobot(user.api) then
+                    user.playerinfo = user.playerinfo or {}
+                    if self:conf().roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money") then
+                        user.playerinfo.balance = v.money
+                        user.money = v.money
+                    elseif self:conf().roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
+                        user.playerinfo.balance = v.coin
+                        user.coin = v.coin
+                    end
+                end
+                if type(v) == "table" and rawget(v, "extrainfo") and v.extrainfo and v.extrainfo ~= "" then
+                    local extrainfo = rawget(v, "extrainfo") and cjson.decode(v.extrainfo) or nil
+                    if extrainfo and extrainfo["api"] == "debit" then
+                        user.isdebiting = false
+                        if self.needSendCards and v.uid == self.uid then
+                            self.needSendCards = false
+                            self:doResult(self.t, self.linkid)
+                        end
+                    end
                 end
             end
+
+            -- --该局结算后才debit成功、需要补回
+            -- Utils:debitRepay(
+            --     self,
+            --     pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE"),
+            --     v,
+            --     user,
+            --     EnumRoomState.Show
+            -- )
+            log.info("(%s,%s) userWalletResp(),uid=%s,userMoney=%s", self.id, self.mid, self.uid or 0,
+                self:getUserMoney(self.uid))
         else
-            Utils:transferRepay(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_RETURNCHIPS"), v)
+            if type(v) == "table" and rawget(v, "extrainfo") and v.extrainfo and v.extrainfo ~= "" then
+                local extrainfo = rawget(v, "extrainfo") and cjson.decode(v.extrainfo) or nil
+                if user and extrainfo and extrainfo["api"] == "debit" and v.uid == self.uid then
+                    user.isdebiting = false
+                    self.t.code = pb.enum_id("network.cmd.EnumBetErrorCode", "EnumBetErrorCode_Fail") -- 下注失败
+
+                    local resp = pb.encode("network.cmd.PBSlotSpinResp_S", self.t)
+                    net.send(
+                        self.linkid,
+                        self.uid,
+                        pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                        pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_SlotSpinResp"), -- 旋转回应
+                        resp
+                    )
+                    log.debug("idx(%s,%s) userchipin(),uid=%s, PBSlotSpinResp_S: %s", self.id, self.mid, self.uid,
+                        cjson.encode(self.t))
+                    self.state = EnumRoomState.Check 
+                end
+            end
         end
     end
 end
@@ -1816,7 +2080,7 @@ function Room:userSlotConfInfo(uid, linkid, rev)
     local t = {
         -- 待返回的结构  PBSlotConfResp_S
         aIcon = {},
-        minBetForJackpot = self.conf.jpminbet or 10000
+        minBetForJackpot = self.confInfo.jpminbet or 10000
     }
 
     local i = 1
@@ -1846,26 +2110,31 @@ end
 -- 获取最终的牌数据
 function Room:getFinalCards()
     local times = 0
-    local randCards = {}
+    local randCards
     local last_profit_rate = nil
     local minwin = nil
     local profit_rate, usertotalbet_inhand, usertotalprofit_inhand = 0, self.bet, 0
+    -- if self.currentIsFreeSpin then
+    --     usertotalbet_inhand = 0
+    -- end
+
     while true do
-        randCards = GetCards(SLOT_CONF, self.conf.mid)
-        if self.conf.single_profit_switch then -- 如果是单人控制
+        randCards = GetCards(SLOT_CONF, self.confInfo.mid)
+        if self.confInfo.single_profit_switch then -- 如果是单人控制
             self.cards = g.copy(randCards)
             return self.cards
         end
-        usertotalprofit_inhand = GetAllLineWinTimes(randCards, SLOT_CONF, self.conf.mid) * self.bet / SLOT_CONF.lineNum
+        usertotalprofit_inhand = GetAllLineWinTimes(randCards, SLOT_CONF, self.confInfo.mid) * self.bet /
+            SLOT_CONF.lineNum
         if not minwin or usertotalprofit_inhand < minwin then
             minwin = usertotalprofit_inhand
             self.cards = g.copy(randCards)
         end
 
         profit_rate = self:getTotalProfitRate(usertotalbet_inhand, usertotalprofit_inhand)
-        if profit_rate < self.conf.profitrate_threshold_minilimit then -- 盈利阈值触发收紧策略
+        if profit_rate < self.confInfo.profitrate_threshold_minilimit then -- 盈利阈值触发收紧策略
             -- 百分之百会重新发牌
-        elseif profit_rate < self.conf.profitrate_threshold_lowerlimit then
+        elseif profit_rate < self.confInfo.profitrate_threshold_lowerlimit then
             local rnd = rand.rand_between(1, 10000)
             if rnd <= 5000 then -- 一半的概率不需要重新发牌
                 break
@@ -1873,7 +2142,7 @@ function Room:getFinalCards()
         else
             break -- 不需要重新发牌  跳出while循环
         end
-
+        log.debug("getFinalCards() times=%s,uid=%s", times, self.uid)
         times = times + 1
         if times > 5 then
             break
@@ -1882,9 +2151,9 @@ function Room:getFinalCards()
     profit_rate = self:getTotalProfitRate(usertotalbet_inhand, minwin, true)
     log.debug("getFinalCards() profit_rate=%s, bet=%s,winMoney=%s", tostring(profit_rate), self.bet, minwin)
 
-   -- if rand.rand_between(0, 100) < 10 then   -- 2022-2-18 
-   --     self.cards = {0x06, 0x0a, 0x0B, 0x0c, 0x0c, 0x0c, 0x09, 0x0d, 0x0d, 0x0d, 0x0d, 0x02, 0x0C, 0x03, 0x01}
-   -- end
+    -- if rand.rand_between(0, 100) < 10 then   -- 2022-2-18
+    --     self.cards = {0x06, 0x0a, 0x0B, 0x0c, 0x0c, 0x0c, 0x09, 0x0d, 0x0d, 0x0d, 0x0d, 0x02, 0x0C, 0x03, 0x01}
+    -- end
 
     return self.cards
 end
@@ -1903,13 +2172,15 @@ function Room:getTotalProfitRate(currentBet, currentWin, isResult)
             return arg1 > arg2
         end
     ) do
-        if sn >= self.conf.profitrate_threshold_maxdays then -- 如果前面已有3个元素
+        if sn >= self.confInfo.profitrate_threshold_maxdays then -- 如果前面已有3个元素
             sn = k
             break
         end
         totalbets = totalbets + v -- 累计玩家总下注额
         sn = sn + 1
     end
+
+    totalbets = totalbets + currentBet -- 增加本局下注金额 2022-8-19 19:26:33
 
     self.total_bets[sn] = nil -- 将最前那个移除掉  防止超过 profitrate_threshold_maxdays 天
     sn = 0
@@ -1920,7 +2191,7 @@ function Room:getTotalProfitRate(currentBet, currentWin, isResult)
             return arg1 > arg2
         end
     ) do
-        if sn >= self.conf.profitrate_threshold_maxdays then
+        if sn >= self.confInfo.profitrate_threshold_maxdays then
             sn = k
             break
         end
@@ -1933,7 +2204,7 @@ function Room:getTotalProfitRate(currentBet, currentWin, isResult)
     totalprofit = totalprofit + currentWin
 
     --盈利率 = (投注总额*(1-投注进入jackpot比例) -  非jackpot中奖总额 ) / 投注总额*(1-投注进入jackpot比例)
-    local percent = JACKPOT_CONF[self.conf.jpid].deltabb / 100.0
+    local percent = JACKPOT_CONF[self.confInfo.jpid].deltabb / 100.0
     local profit_rate = totalbets > 0 and (totalbets * (1 - percent) - totalprofit) / (totalbets * (1 - percent)) or 0
     if isResult then
         log.debug(
@@ -1961,7 +2232,7 @@ function Room:GetRealPlayerWin()
     local winMoney = 0
 
     -- 计算所有线条赢得的倍数
-    local lineWinTimes = GetAllLineWinTimes(self.cards, SLOT_CONF, self.conf.mid)
+    local lineWinTimes = GetAllLineWinTimes(self.cards, SLOT_CONF, self.confInfo.mid)
 
     if lineWinTimes > 0 then
         winMoney = lineWinTimes * self.bet / SLOT_CONF.lineNum
@@ -1969,7 +2240,7 @@ function Room:GetRealPlayerWin()
 
     local scatterNum = 0
     -- 旋转金额大于等于10000才有机会赢得jackpot
-    if self.bet >= self.conf.jpminbet then
+    if self.bet >= self.confInfo.jpminbet then
         -- 计算这一局赢得的jackpot
         scatterNum = GetScatterNum(self.cards)
         if scatterNum >= 3 then
@@ -1981,32 +2252,46 @@ function Room:GetRealPlayerWin()
     return winMoney
 end
 
+-- 发送游戏结果
 function Room:sendResult(uid, t, linkid)
-    local user = self.users[uid] -- 根据玩家ID获取玩家对象
+    local user = self.users[uid] or {} -- 根据玩家ID获取玩家对象
     local curday = global.cdsec() -- 当天标志
-    self.state = 3 -- 结算状态
-    self.stateBeginTime = global.ctsec()  -- 该状态开始时刻 
+    self.state = EnumRoomState.Show -- 4 -- 结算状态
+    self.stateBeginTime = global.ctsec() -- 该状态开始时刻
 
     if self.cfgcard_switch and not self.lastSpinIsFree then
         if rand.rand_between(0, 100) < 20 then
-            self.cards = {0x06, 0x0a, 0x0B, 0x0c, 0x0c, 0x0c, 0x09, 0x0d, 0x0d, 0x0d, 0x0d, 0x02, 0x02, 0x03, 0x01}
+            self.cards = { 0x06, 0x0a, 0x0B, 0x0c, 0x0c, 0x0c, 0x09, 0x0d, 0x0d, 0x0d, 0x0d, 0x02, 0x02, 0x03, 0x01 }
         end
     end
-    t.cards = g.copy(self.cards)
+    -- if not self.currentIsFreeSpin then
+    --     local randV = rand.rand_between(1, 100)
+    --     if randV < 30 then
+    --         --self.cards = { 0x06, 0x0a, 0x0B, 0x0c, 0x0c, 0x0c, 0x09, 0x0d, 0x0d, 0x0d, 0x0d, 0x02, 0x02, 0x03, 0x01 } -- 同时存在jackpot和free
+    --         self.cards = { 0x06, 0x0a, 0x0B, 0x03, 0x03, 0x02, 0x09, 0x0d, 0x0d, 0x0d, 0x04, 0x02, 0x02, 0x03, 0x01 } -- 只中jackpot
+    --     elseif randV < 60 then
+    --         self.cards = { 0x06, 0x0a, 0x0B, 0x03, 0x03, 0x02, 0x09, 0x0d, 0x0d, 0x0d, 0x0d, 0x02, 0x02, 0x03, 0x01 } -- 只中jackpot
+    --     elseif randV < 90 then
+    --         --self.cards = { 0x06, 0x0a, 0x0B, 0x0c, 0x0c, 0x0c, 0x09, 0x02, 0x03, 0x04, 0x05, 0x02, 0x02, 0x03, 0x01 } -- 只中free
+    --         self.cards = { 0x06, 0x0a, 0x0B, 0x03, 0x03, 0x02, 0x09, 0x0d, 0x0d, 0x0d, 0x0d, 0x0d, 0x02, 0x03, 0x01 } -- 只中jackpot
+    --     end
+    -- end
+    t.cards = g.copy(self.cards) -- 该局牌数据
 
     local winMoney = 0 -- 该局赢取到的金额
     self.lastWin = 0
 
     -- 计算所有线条赢得的倍数
-    local lineWinTimes = GetAllLineWinTimes(self.cards, SLOT_CONF, self.conf.mid)
+    local lineWinTimes = GetAllLineWinTimes(self.cards, SLOT_CONF, self.confInfo.mid)
     if lineWinTimes > 0 then
+        log.debug("sendResult(),uid=%s,lineWinTimes=%s,bet=%s", self.uid, lineWinTimes, self.bet)
         winMoney = lineWinTimes * self.bet / SLOT_CONF.lineNum
         self.lastWin = winMoney
         local lineCards = {}
         local winLineTimes = 0
         for i = 1, SLOT_CONF.lineNum do -- 遍历每一条线
             lineCards = GetLineData(i, self.cards, SLOT_CONF)
-            local lineTimes, num = GetWinType(lineCards, SLOT_CONF, self.conf.mid)
+            local lineTimes, num = GetWinType(lineCards, SLOT_CONF, self.confInfo.mid)
             if lineTimes > 0 then
                 table.insert(
                     t.winLines,
@@ -2023,19 +2308,25 @@ function Room:sendResult(uid, t, linkid)
 
     --盈利扣水
     local totalpureprofit = 0
-    if t.isFreeSpin then
-        winMoney = math.floor(winMoney * (1 - (self.conf.rebate or 0)))
+    if t.isFreeSpin then -- 如果是免费旋转
+        winMoney = math.floor(winMoney * (1 - (self.confInfo.rebate or 0)))
         totalpureprofit = winMoney
-    else
-        local rebate = math.floor((winMoney - self.bet) * (self.conf.rebate or 0))
+        user.totalpureprofit = totalpureprofit
+    else -- 如果不是免费旋转
+        local rebate = math.floor((winMoney - self.bet) * (self.confInfo.rebate or 0))
         if rebate > 0 then
             winMoney = winMoney - rebate
         end
-        totalpureprofit = winMoney - self.bet
+        totalpureprofit = winMoney - self.bet -- 纯盈利
+        user.totalpureprofit = totalpureprofit
     end
+    self.winMoney = self.winMoney + winMoney -- 本次赢取到的金额总和(如果有免费旋转，则有多局)
+
+    log.debug("sendResult(),uid=%s,userMoney=%s,winMoney=%s,self.winMoney=%s", self.uid, self:getUserMoney(self.uid),
+        winMoney, self.winMoney)
 
     -- 计算这一局赢取的免费旋转次数
-    local winFreeSpinTimes = GetWinFreeSpinTimes(self.cards, SLOT_CONF, self.conf.mid)
+    local winFreeSpinTimes = GetWinFreeSpinTimes(self.cards, SLOT_CONF, self.confInfo.mid)
     if winFreeSpinTimes > 0 then
         if self.cfgcard_switch then
             winFreeSpinTimes = 3 -- 暂时测试用 待修改DQW
@@ -2046,132 +2337,133 @@ function Room:sendResult(uid, t, linkid)
 
     local scatterNum = 0
     -- 旋转金额大于等于10000才有机会赢得jackpot
-    if self.bet >= self.conf.jpminbet then
+    if self.bet >= self.confInfo.jpminbet then
         -- 计算这一局赢得的jackpot
         scatterNum = GetScatterNum(self.cards)
     end
     if t.isFreeSpin then
-        t.balance = self:getUserMoney(self.uid) + winMoney -- 玩家身上金额
+        -- t.balance = self:getUserMoney(self.uid) + winMoney -- 玩家身上金额
+        t.balance = self.beginMoney + self.winMoney
         self.totalFreeSpinWin = self.totalFreeSpinWin + winMoney
         self.lastWin = self.totalFreeSpinWin
     else
         self.lastWin = winMoney
         --t.balance = self:getUserMoney(self.uid) + winMoney - self.bet -- 玩家身上金额
-        t.balance = self:getUserMoney(self.uid) + winMoney -- 玩家身上金额
+        -- t.balance = self:getUserMoney(self.uid) + winMoney -- 玩家身上金额
+        t.balance = self.beginMoney + self.winMoney -- 玩家身上金额
     end
-    t.winMoney = winMoney
+    t.winMoney = winMoney -- 该局赢取到的金额
     t.winFreeSpinTimes = winFreeSpinTimes
     t.freeSpinTimes = self.freeSpinTimes
     t.totalFreeSpinWin = self.totalFreeSpinWin
 
     if winMoney > 0 then
         self.total_profit[curday] = (self.total_profit[curday] or 0) + winMoney -- 线条中奖总金额
-        Utils:walletRpc(
-            uid,
-            user.api,
-            user.ip,
-            winMoney,
-            pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE"),
-            linkid,
-            self.conf.roomtype,
-            self.id,
-            self.mid,
-            {
-                api = "debit",
-                sid = user.sid or 1,
-                userId = user.userId,
-                transactionId = g.uuid(),
-                roundId = user.roundId,
-                gameId = tostring(global.stype())
-            }
-        )
+        self.users[self.uid] = self.users[self.uid] or {}
+        self.users[self.uid].totalprofit = self.winMoney
+        self.users[self.uid].totalfee = 0
+    else
+        self.users[self.uid] = self.users[self.uid] or {}
+        self.users[self.uid].totalprofit = self.winMoney
+        self.users[self.uid].totalfee = 0
     end
 
-    self.sdata = {roomtype = self.conf.roomtype, tag = self.conf.tag or 1} -- 清空统计数据
+    self.sdata = self.sdata or { roomtype = self.confInfo.roomtype, tag = self.confInfo.tag or 1 } -- 清空统计数据
 
     self.sdata.stime = self.starttime -- 开始时刻(秒)
-    self.sdata.etime = self.starttime + 1 -- 结束时刻(秒)
+    self.sdata.etime = global.ctms() / 1000 -- 结束时刻(秒) DQW
     self.sdata.totalbet = self.bet -- 该局总下注额
-    self.sdata.totalprofit = winMoney -- 该局总收益
-    self.sdata.jp = {}
-    self.sdata.jp.id = self.conf.jpid
+    self.sdata.totalprofit = self.winMoney -- 该局总收益
 
+    self.sdata.jp = self.sdata.jp or {}
+    self.sdata.jp.id = self.confInfo.jpid
+
+    log.debug("uid=%s,jpid=%s,self.bet=%s,jpminbet=%s,scatterNum=%s", self.uid, self.confInfo.jpid, self.bet,
+        self.confInfo.jpminbet, scatterNum)
     --JackPot抽水
-    if JACKPOT_CONF[self.conf.jpid] then
+    if JACKPOT_CONF[self.confInfo.jpid] then
         if t.isFreeSpin then
             self.sdata.jp.delta_add = self.sdata.jp.delta_add or 0
         else
-            local delta_add = JACKPOT_CONF[self.conf.jpid].deltabb * self.bet / 100
+            local delta_add = JACKPOT_CONF[self.confInfo.jpid].deltabb * self.bet / 100
             self.sdata.jp.delta_add = (self.sdata.jp.delta_add or 0) + delta_add
         end
 
         if scatterNum > 5 then
             t.winJackPot = true
             self.jackpot_and_showcard_flags = true
-            self.sdata.jp.delta_sub = JACKPOT_CONF[self.conf.jpid].percent[3]
-            self.sdata.jp.uid = self.uid
-            self.sdata.jp.username = self.users[self.uid] and self.users[self.uid].username or ""
-            self.sdata.winpokertype = 5
+            -- self.sdata.jp.delta_sub = JACKPOT_CONF[self.confInfo.jpid].percent[3]
+            -- self.sdata.jp.uid = self.uid
+            -- self.sdata.jp.username = self.users[self.uid] and self.users[self.uid].username or ""
+            -- self.sdata.winpokertype = 5
+            self.needJackPotResult = true
+
+            self.gamelog.jp = {}
+            self.gamelog.jp.delta_sub = JACKPOT_CONF[self.confInfo.jpid].percent[3]
+            self.gamelog.jp.uid = self.uid
+            self.gamelog.jp.username = self.users[self.uid] and self.users[self.uid].username or ""
+            self.gamelog.winpokertype = 5
+            log.debug("uid=%s,jpid=%s,self.gamelog=%s", self.uid, self.confInfo.jpid, cjson.encode(self.gamelog))
+            self:getJackpot()
+            -- 增加定时器，等待jackpot结果
+            timer.tick(self.timer, TimerID.TimerID_WaitJackpotResult[1], TimerID.TimerID_WaitJackpotResult[2],
+                onWaitJackpotResult, self)
         elseif scatterNum >= 3 then
             t.winJackPot = true
             self.jackpot_and_showcard_flags = true
-            self.sdata.jp.delta_sub = JACKPOT_CONF[self.conf.jpid].percent[scatterNum - 2]
-            self.sdata.jp.uid = self.uid
-            self.sdata.jp.username = self.users[self.uid] and self.users[self.uid].username or ""
-            self.sdata.winpokertype = scatterNum
+            -- self.sdata.jp.delta_sub = JACKPOT_CONF[self.confInfo.jpid].percent[scatterNum - 2]
+            -- self.sdata.jp.uid = self.uid
+            -- self.sdata.jp.username = self.users[self.uid] and self.users[self.uid].username or ""
+            -- self.sdata.winpokertype = scatterNum
+            self.needJackPotResult = true
+
+
+            self.gamelog.jp = {}
+            self.gamelog.jp.delta_sub = JACKPOT_CONF[self.confInfo.jpid].percent[scatterNum - 2]
+            self.gamelog.jp.uid = self.uid
+            self.gamelog.jp.username = self.users[self.uid] and self.users[self.uid].username or ""
+            self.gamelog.winpokertype = scatterNum
+            log.debug("uid=%s,jpid=%s,self.gamelog=%s", self.uid, self.confInfo.jpid, cjson.encode(self.gamelog))
+            self:getJackpot()
+            -- 增加定时器，等待jackpot结果
+            timer.tick(self.timer, TimerID.TimerID_WaitJackpotResult[1], TimerID.TimerID_WaitJackpotResult[2],
+                onWaitJackpotResult, self)
         end
     end
 
     -- 牌局统计数据上报
     self.sdata.areas = {}
-    self.sdata.cards = {{cards = {}}}
-    self.sdata.cards[1].cards = g.copy(self.cards)
-    self.sdata.wintypes = {1}
+    self.sdata.cards = self.sdata.cards or { { cards = {} } }
+    self.sdata.cards[self.index] = { cards = {} }
+    self.sdata.cards[self.index].cards = g.copy(self.cards)
+    self.sdata.wintypes = { 1 }
     self.sdata.totalbet = self.bet
-    self.sdata.totalprofit = winMoney
-    self.sdata.extrainfo = cjson.encode({playercount = 1, playerbet = self.bet, playerprofit = winMoney})
+    self.sdata.totalprofit = self.winMoney
+    self.sdata.extrainfo = cjson.encode({ playercount = self.index, playerbet = self.bet, playerprofit = self.winMoney })
 
     -- 统计
     self.sdata.users = self.sdata.users or {}
     self.sdata.users[uid] = self.sdata.users[uid] or {}
     self.sdata.users[uid].stime = self.starttime
-    self.sdata.users[uid].etime = self.starttime + 1
+    self.sdata.users[uid].etime = global.ctms() / 1000
     self.sdata.users[uid].username = user.username
     self.sdata.users[uid].nickurl = user.nickurl
     self.sdata.users[uid].totalbet = self.bet
-    self.sdata.users[uid].totalprofit = winMoney
-    self.sdata.users[uid].totalpureprofit = totalpureprofit
+    self.sdata.users[uid].totalprofit = self.winMoney
+    self.sdata.users[uid].totalpureprofit = self.winMoney - self.bet
 
     self.sdata.users[uid].cards = g.copy(self.cards)
+
     if not Utils:isRobot(user.api) then
-        self.sdata.users[uid].ugameinfo = {texas = {inctotalhands = 1}}  -- 增加该玩家已玩局数
+        self.sdata.users[uid].ugameinfo = { texas = { inctotalhands = 1 } } -- 增加该玩家已玩局数
     end
-    if t.isFreeSpin then  -- 如果是免费旋转
+    if t.isFreeSpin then -- 如果是免费旋转
         self.sdata.users[uid].extrainfo =
-            cjson.encode(
+        cjson.encode(
             {
                 ip = user and user.ip or "",
                 api = user and user.api or "",
-                roomtype = self.conf.roomtype,
-                roundid = user.roundId,
-                jp = {
-                    id = self.sdata.jp.id,
-                    delta_sub = self.sdata.jp.delta_sub or 0,
-                    delta_add = self.sdata.jp.delta_add or 0
-                },
-                playchips = 0, -- 2022-1-11
-                maxwin = user.maxwin or 0,  -- 2022-3-21
-                money = self:getUserMoney(uid) or 0,
-                totalmoney = self:getUserMoney(uid) or 0  -- 总金额
-            }
-        )
-    else
-        self.sdata.users[uid].extrainfo =
-            cjson.encode(
-            {
-                ip = user and user.ip or "",
-                api = user and user.api or "",
-                roomtype = self.conf.roomtype,
+                roomtype = self.confInfo.roomtype,
                 roundid = user.roundId,
                 jp = {
                     id = self.sdata.jp.id,
@@ -2179,29 +2471,64 @@ function Room:sendResult(uid, t, linkid)
                     delta_add = self.sdata.jp.delta_add or 0
                 },
                 playchips = self.bet, -- 2022-1-11
-                maxwin = user.maxwin or 0,  -- 2022-3-21
+                maxwin = user.maxwin or 0, -- 2022-3-21
                 money = self:getUserMoney(uid) or 0,
-                totalmoney = self:getUserMoney(uid) or 0  -- 总金额
+                totalmoney = self:getUserMoney(uid) or 0 -- 总金额
+            }
+        )
+    else
+        self.sdata.users[uid].extrainfo =
+        cjson.encode(
+            {
+                ip = user and user.ip or "",
+                api = user and user.api or "",
+                roomtype = self.confInfo.roomtype,
+                roundid = user.roundId,
+                jp = {
+                    id = self.sdata.jp.id,
+                    delta_sub = self.sdata.jp.delta_sub or 0,
+                    delta_add = self.sdata.jp.delta_add or 0
+                },
+                playchips = self.bet, -- 2022-1-11
+                maxwin = user.maxwin or 0, -- 2022-3-21
+                money = self:getUserMoney(uid) or 0,
+                totalmoney = self:getUserMoney(uid) or 0 -- 总金额
             }
         )
     end
-    if t.winJackPot then
-        self.needJackPotResult = true
-    else
-        self.needJackPotResult = false
-    end
-
-    self.statistic:appendLogs(self.sdata, self.logid)
 
     t.totalFreeSpinTimes = self.totalFreeSpinTimes -- 总共免费旋转次数
     if t.isFreeSpin and 0 == self.freeSpinTimes then -- 如果免费旋转次数已用完
         -- t.totalFreeSpinTimes = self.totalFreeSpinTimes -- 总共免费旋转次数
-        t.totalFreeSpinWin = self:getUserMoney(self.uid) + winMoney - self.beginFreeSpinMoney --免费旋转总盈利
-        if t.totalFreeSpinWin < self.totalFreeSpinWin then
-            t.totalFreeSpinWin = self.totalFreeSpinWin
-        end
+        -- t.totalFreeSpinWin = self:getUserMoney(self.uid) + self.winMoney - self.beginFreeSpinMoney --免费旋转总盈利
+        -- if t.totalFreeSpinWin < self.totalFreeSpinWin then
+        --     t.totalFreeSpinWin = self.totalFreeSpinWin
+        -- end
         self.totalFreeSpinTimes = 0
     end
+
+    if not self.users[self.uid].isdebiting and self.freeSpinTimes <= 0 and not self.needJackPotResult then -- 如果未中免费旋转且未中jackpot
+        Utils:credit(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE")) -- 增加金额(输赢都更新金额)
+        log.debug("Utils:credit(),uid=%s,self.winMoney=%s,userMoney=%s,sendResult()", self.uid, self.winMoney,
+            self:getUserMoney(self.uid))
+
+        log.debug("uid=%s,self.sdata.jp=%s", self.uid, cjson.encode(self.sdata.jp))
+
+        self.sdata.users = self.sdata.users or {}
+        self.sdata.users[uid] = self.sdata.users[uid] or {}
+        self.sdata.users[uid].totalprofit = self.winMoney
+        self.sdata.users[uid].totalpureprofit = self.winMoney - self.bet
+
+        self.statistic:appendLogs(self.sdata, self.logid) -- 统计信息
+        self:reset()
+
+        self.winMoney = 0
+        self.sdata.jp = {}
+        Utils:serializeMiniGame(SLOT_INFO, nil, global.stype())
+    end
+    -- if self.needJackPotResult and self.freeSpinTimes <= 0 then
+    --     t.winJackPot = true
+    -- end
 
     local resp = pb.encode("network.cmd.PBSlotSpinResp_S", t)
     net.send(
@@ -2212,13 +2539,44 @@ function Room:sendResult(uid, t, linkid)
         resp
     )
     log.info("idx(%s,%s) uid=%s, PBSlotSpinResp_S: %s", self.id, self.mid, uid, cjson.encode(t))
-
-    Utils:serializeMiniGame(SLOT_INFO, nil, global.stype())
-    if not self.needJackPotResult then
-        self.state = 0
-        self.stateBeginTime = global.ctsec()  -- 该状态开始时刻 
-    else
-        -- 增加定时器，等待jackpot结果
-        timer.tick(self.timer, TimerID.TimerID_WaitJackpotResult[1], TimerID.TimerID_WaitJackpotResult[2], onWaitJackpotResult, self)
+    if not self.needJackPotResult then -- 如果不需要等待jackpot结果
+        self.state = EnumRoomState.Check
+        self.stateBeginTime = global.ctsec() -- 该状态开始时刻
     end
+end
+
+-- 获取未中任何奖的牌数据(输的牌)
+function Room:getLoseCards()
+    for i = 1, 1000, 1 do
+        local cards = { rand.rand_between(1, 10), rand.rand_between(1, 11), rand.rand_between(1, 13),
+            rand.rand_between(1, 10),
+            rand.rand_between(1, 13), rand.rand_between(1, 10), rand.rand_between(1, 10), rand.rand_between(1, 10),
+            rand.rand_between(1, 11),
+            rand.rand_between(1, 13), rand.rand_between(1, 10), rand.rand_between(1, 11), rand.rand_between(1, 10),
+            rand.rand_between(1, 10), rand.rand_between(1, 10) }
+
+        local scatterNum = GetScatterNum(cards)
+        local freeSpinsNum = GetFreeSpinsNum(cards)
+        local lineWinTimes = GetAllLineWinTimes(cards, SLOT_CONF, self.confInfo.mid)
+
+        if scatterNum < 3 and freeSpinsNum < 3 and lineWinTimes <= 0 then
+            return cards
+        end
+    end
+end
+
+-- 增加消息请求获取中jackpot金额
+function Room:getJackpot()
+    -- network.inter.PBGameLog
+
+    self.gamelog.logid = self.logid
+    self.gamelog.stime = self.starttime
+    self.gamelog.etime = global.ctms() / 1000
+    self.gamelog.cards[1].cards = self.cards or {}
+    self.gamelog.totalbet = self.bet or 0
+
+    self.gamelog.jp.id = self.confInfo.jpid
+
+
+    Utils:requestJackpotChange(self.gamelog)
 end

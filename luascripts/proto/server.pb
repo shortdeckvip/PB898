@@ -1,5 +1,5 @@
 
-®ê
+¥ë
 server.protonetwork.inter"M
 SharedSynData
 uids (Ruids
@@ -374,13 +374,14 @@ cresttimes
 Game2UserUpdateProfitInfo
 ctx (Rctx9
 data (2%.network.inter.PBUserProfitUpdateDataRdata
-ispvp (Rispvp"≥
+ispvp (Rispvp"œ
 Game2UserProfitResultReqResp
 ctx (Rctx
 matchid (Rmatchid
 roomid (Rroomid9
 data (2%.network.inter.PBUserProfitResultDataRdata
-ispvp (Rispvp"é
+ispvp (Rispvp
+isglobal (Risglobal"é
 Game2UserQueryChargeInfo
 uid (Ruid
 matchid (Rmatchid
@@ -555,7 +556,7 @@ $Game2MutexSubCmd_MutexUserRoomIdxReq+
 (Game2MutexSubCmd_MutexAllUserRoomIdxRespà 0
 +Game2MutexSubCmd_MutexUserMoneyUpdateNotifyÅ@*:
 SS2StatisticSubCmd$
- SS2StatisticSubCmd_UserActionReq*¡
+ SS2StatisticSubCmd_UserActionReq*
 Game2StatisticSubCmd&
 "Game2StatisticSubCmd_UserActionReq$
  Game2StatisticSubCmd_GameCoinReq(
@@ -565,7 +566,9 @@ $Game2StatisticSubCmd_MoneyChangedReq)
 %Game2StatisticSubCmd_RoomLogReportReq-
 )Game2StatisticSubCmd_GameUserLogReportReq*
 &Game2StatisticSubCmd_TexasStatisticReq'
-#Game2StatisticSubCmd_JackpotReqResp	,
+#Game2StatisticSubCmd_JackpotReqResp	-
+)Game2StatisticSubCmd_JackpotChangeReqResp
+,
 'Game2StatisticSubCmd_TexasStatisticRespà ,
 'Game2StatisticSubCmd_JackpotUserWinningâ &
 !Game2StatisticSubCmd_OnlineNotifyä (
@@ -606,7 +609,7 @@ $Game2StatisticSubCmd_PlayHandReqResp*Â
 MONEY_CHANGE_COIN
 MONEY_CHANGE_TOOL
 MONEY_CHANGE_VIP
-MONEY_CHANGE_DIAMOND*¥	
+MONEY_CHANGE_DIAMOND*ı	
 MONEY_CHANGE_REASON
 MONEY_CHANGE_TRAIN
 MONEY_CHANGE_CHARGE
@@ -648,7 +651,9 @@ $Game2StatisticSubCmd_PlayHandReqResp*Â
 MONEY_CHANGE_SEOTDAWAR_BET&!
 MONEY_CHANGE_SEOTDAWAR_SETTLE'
 MONEY_CHANGE_DICE6_BET(
-MONEY_CHANGE_DICE6_SETTLE)
+MONEY_CHANGE_DICE6_SETTLE)
+MONEY_CHANGE_SLOTFARM_BET* 
+MONEY_CHANGE_SLOTFARM_SETTLE+
 MONEY_CHANGE_WHEEL_SETTLE 
 MONEY_CHANGE_WHEEL_BETÀ*r
 USER_ROLE_TYPE

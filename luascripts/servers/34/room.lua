@@ -112,10 +112,9 @@ end
 local function onHandCardsAnimation(self)
     local function doRun()
         log.debug(
-            "idx(%s,%s,%s) onHandCardsAnimation:%s",
+            "idx(%s,%s,%s) onHandCardsAnimation(),current_betting_pos=%s",
             self.id,
             self.mid,
-            tostring(self.logid),
             tostring(self.logid),
             self.current_betting_pos
         )
@@ -130,7 +129,7 @@ end
 
 local function onPotAnimation(self)
     local function doRun()
-        log.debug("idx(%s,%s,%s) onPotAnimation", self.id, self.mid, tostring(self.logid), tostring(self.logid))
+        log.debug("idx(%s,%s,%s) onPotAnimation()", self.id, self.mid, tostring(self.logid), tostring(self.logid))
         timer.cancel(self.timer, TimerID.TimerID_PotAnimation[1])
         self:finish()
     end
@@ -1123,7 +1122,7 @@ function Room:userTableInfo(uid, linkid, rev)
         tableinfo.readyLeftTime
     self:sendAllSeatsInfoToMe(uid, linkid, tableinfo)
     log.debug(
-        "idx(%s,%s,%s) uid:%s userTableInfo:%s",
+        "idx(%s,%s,%s) userTableInfo(),uid=%s,userTableInfo=%s",
         self.id,
         self.mid,
         tostring(self.logid),
@@ -2427,14 +2426,18 @@ function Room:dealHandCards()
         end
     )
     local robotlist = {}
-    local hasplayer = false
+    local realPlayerSeatList = {}
+    local robotSeatList = {}
+    local hasplayer = false  -- 是否有真实玩家参与游戏
     for _, seat in ipairs(self.seats) do
         local user = self.users[seat.uid]
         if user and seat.isplaying then
             if Utils:isRobot(user.api) then
                 table.insert(robotlist, seat.uid)
+                table.insert(robotSeatList, seat)
             else
                 hasplayer = true
+                table.insert(realPlayerSeatList, seat)
             end
         end
     end
@@ -2498,6 +2501,36 @@ function Room:dealHandCards()
         )
         timer.tick(self.timer, TimerID.TimerID_Result[1], TimerID.TimerID_Result[2], onResultTimeout, {self})
         coroutine.resume(self.result_co)
+    elseif self.conf.global_profit_switch and hasplayer then
+        --[[
+            15%控制输：随机一个玩家输，随机一个AI赢；若无AI，随机一个其他玩家赢
+            12%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
+            剩余概率不控制
+        ]]
+        local randV = rand.rand_between(1, 10000)
+        if randV <= 1500 then
+            -- 15%控制输：随机一个玩家输，随机一个AI赢；若无AI，随机一个其他玩家赢
+            if #robotSeatList > 0 then
+                log.debug("idx(%s,%s,%s) global control 1", self.id, self.mid, self.logid)
+                self:dealHandCardsCommon(robotSeatList[rand.rand_between(1,#robotSeatList)], realPlayerSeatList[rand.rand_between(1,#realPlayerSeatList)])
+            else
+                log.debug("idx(%s,%s,%s) global control 2", self.id, self.mid, self.logid)
+                self:dealHandCardsCommon(nil, realPlayerSeatList[rand.rand_between(1,#realPlayerSeatList)])
+            end
+        elseif randV <= 2700 then 
+            -- 12%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
+            if #robotSeatList > 0 then
+                log.debug("idx(%s,%s,%s) global control 3", self.id, self.mid, self.logid)
+                self:dealHandCardsCommon(realPlayerSeatList[rand.rand_between(1,#realPlayerSeatList)], robotSeatList[rand.rand_between(1,#robotSeatList)])
+            else
+                log.debug("idx(%s,%s,%s) global control 4", self.id, self.mid, self.logid)
+                self:dealHandCardsCommon(realPlayerSeatList[rand.rand_between(1,#realPlayerSeatList)], nil)
+            end
+        else
+            -- 73%不控制输赢
+            log.debug("idx(%s,%s,%s) global control 5", self.id, self.mid, self.logid)
+            self:dealHandCardsCommon()
+        end  
     else
         self:dealHandCardsCommon()
     end

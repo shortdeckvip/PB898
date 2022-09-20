@@ -12,7 +12,8 @@ local conf = {
         mintable = 3,
         maxtable = 400,
         carrybound = {100000, 1500000}, --
-        chips = {100, 500, 1000, 2000, 5000, 10000, 50000, 100000, 1000000}, -- 筹码设置
+        chips = {100, 500, 1000, 5000, 10000, 50000, 100000, 500000}, -- 筹码设置
+        robotBetChipProb = {1000, 1000, 2000, 1000, 2000, 1000, 1000, 1000}, -- 机器人下注筹码概率
         betarea = {
             -- 下注区域设置
             -- 赔率, limit-min, limit-max   下注限额
@@ -25,7 +26,7 @@ local conf = {
 
         },
         maxlogsavedsize = 1000, -- 历史记录最多留存
-        maxlogshowsize = 10, -- 历史记录最多显示
+        maxlogshowsize = 50, -- 历史记录最多显示
         fee = 0.05, -- 收取盈利服务费率
         init_banker_money = 1000000000, -- 系统庄初始金币数量
         profitrate_threshold_minilimit = 0.1, -- 最低盈利率
@@ -38,7 +39,6 @@ local conf = {
         update_interval = 5, -- 多少局更新一次
         global_profit_switch = false, -- 根据盈利率控制
         single_profit_switch = false, -- 单人输赢控制
-        robotBetChipProb = {5000, 2500, 1250, 1000, 600, 400, 200, 80, 20}, -- 机器人下注筹码概率
         --robotBetAreaProb = {3000,3000，500} -- 机器人下注区域概率
     }
 }

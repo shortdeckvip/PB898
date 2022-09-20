@@ -9,7 +9,8 @@ local conf = {
         mintable = 3,
         maxtable = 400,
         carrybound = {100000, 1500000},
-        chips = {100, 500, 1000, 2000, 5000, 10000, 50000, 100000, 1000000}, -- 筹码设置
+        chips = {100, 500, 1000, 5000, 10000, 50000, 100000, 500000}, -- 筹码设置
+        robotBetChipProb = {1000, 1000, 2000, 1000, 2000, 1000, 1000, 1000}, -- 机器人下注筹码概率
         betarea = {
             -- 下注区域设置
             -- 赔率, limit-min, limit-max, retry-prob
@@ -37,7 +38,7 @@ local conf = {
         update_interval = 5, -- 多少局更新一次
         global_profit_switch = false,
         single_profit_switch = false,
-        robotBetChipProb = {5000, 2500, 1250, 1000, 600, 400, 200, 80, 20}, -- 机器人下注筹码概率
+        
         robotNum = 30  -- 每桌机器人人数
         --robotBetAreaProb = {3000,3000，500} -- 机器人下注区域概率
     }

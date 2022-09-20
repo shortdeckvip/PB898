@@ -2686,31 +2686,34 @@ end
 local function onBettingTimer(self)
     local function doRun()
         local current_betting_seat = self.seats[self.current_betting_pos]
-        log.info(
-            "idx(%s,%s,%s) onBettingTimer over time bettingpos:%s uid:%s",
-            self.id,
-            self.mid,
-            tostring(self.logid),
-            self.current_betting_pos,
-            current_betting_seat.uid or 0
-        )
-        local user = self.users[current_betting_seat.uid]
-        if current_betting_seat:isChipinTimeout() then
-            timer.cancel(self.timer, TimerID.TimerID_Betting[1])
-            if user and self.m_dueled_pos ~= self.current_betting_pos then
-                user.is_bet_timeout = true
-                user.bet_timeout_count = user.bet_timeout_count or 0
-                user.bet_timeout_count = user.bet_timeout_count + 1
-            end
-            self:userchipin(
-                current_betting_seat.uid,
-                self.m_dueled_pos == self.current_betting_pos and
+        if current_betting_seat then
+            log.info(
+                "idx(%s,%s,%s) onBettingTimer over time bettingpos:%s uid:%s",
+                self.id,
+                self.mid,
+                tostring(self.logid),
+                self.current_betting_pos,
+                current_betting_seat.uid or 0
+            )
+            local user = self.users[current_betting_seat.uid]
+            if current_betting_seat:isChipinTimeout() then
+                timer.cancel(self.timer, TimerID.TimerID_Betting[1])
+                if user and self.m_dueled_pos ~= self.current_betting_pos then
+                    user.is_bet_timeout = true
+                    user.bet_timeout_count = user.bet_timeout_count or 0
+                    user.bet_timeout_count = user.bet_timeout_count + 1
+                end
+                self:userchipin(
+                    current_betting_seat.uid,
+                    self.m_dueled_pos == self.current_betting_pos and
                     pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_DUEL_NO") or
                     pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD"),
-                0
-            )
+                    0
+                )
+            end
         end
     end
+
     g.call(doRun)
 end
 

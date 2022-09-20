@@ -1,5 +1,5 @@
 
-∂)
+‘)
 teempatti.protonetwork.cmdcommon.proto"‡
 PBTeemPattiSeat+
 seat (2.network.cmd.PBSeatInfoRseat
@@ -135,11 +135,12 @@ situations"¿
 type (Rtype
 	winnerSid (R	winnerSid
 loserSid (RloserSid:
-cards (2$.network.cmd.PBTeemPattiShowDealCardRcards"è
+cards (2$.network.cmd.PBTeemPattiShowDealCardRcards"≠
 PBTeemPattiDealCardOnlyRobot7
 cards (2!.network.cmd.PBTeemPattiHandCardsRcards
 isJoker (RisJoker
-	isSpecial (R	isSpecial"M
+	isSpecial (R	isSpecial
+	isControl (R	isControl"M
 PBTeemPattiNotifyCharge
 uid (Ruid 
 chargeMoney (RchargeMoney*ë

@@ -17,17 +17,22 @@ local conf = {
         betarea = {
             -- 下注区域设置
             -- 赔率, limit-min, limit-max   下注限额
-            {2, 1, 10000000}, -- 2_6点下注区
-            {5, 1, 10000000}, -- 7点下注区
-            {2, 1, 10000000}  -- 8_12点下注区
+            {2, 1, 10000000}, -- 下注区1
+            {5, 1, 10000000}, -- 下注区2
+            {2, 1, 10000000}, -- 下注区3
+            {2, 1, 10000000}, -- 下注区4
+            {2, 1, 10000000}, -- 下注区5
+            {2, 1, 10000000}, -- 下注区6
+            {2, 1, 10000000}, -- 下注区7
+            {2, 1, 10000000}, -- 下注区8
         },
         maxlogsavedsize = 1000, -- 历史记录最多留存
         maxlogshowsize = 50, -- 历史记录最多显示
         fee = 0.05, -- 收取盈利服务费率
         init_banker_money = 1000000000, -- 系统庄初始金币数量
         profitrate_threshold_minilimit = 0.1, -- 最低盈利率
-        profitrate_threshold_lowerlimit = 0.15, -- 盈利阈值触发收紧策略   系统盈利率
-        profitrate_threshold_upperlimit = 0.3, -- 盈利阈值触发放水策略
+        profitrate_threshold_lowerlimit = 0.15, -- 盈利阈值触发收紧策略
+        profitrate_threshold_upperlimit = 0.3, -- 盈利阈值触发防水策略
         profitrate_threshold_maxdays = 3, -- 盈利阈值触发盈利天数
         time_per_card = 300, -- 每发一张牌需要多长时间  300ms
         min_player_num = 1, -- 随机最少人数

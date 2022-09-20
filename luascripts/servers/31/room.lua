@@ -209,9 +209,11 @@ function Room:init()
     self.realPlayerUID = 0 --
 
     self.lastCreateRobotTime = 0 -- 上次创建机器人时刻
-    self.createRobotTimeInterval = 5 -- 定时器时间间隔(秒)
+    self.createRobotTimeInterval = 4 -- 定时器时间间隔(秒)
     self.lastRemoveRobotTime = 0 -- 上次移除机器人时刻(秒)
     self.hasCreateTimer = false
+    self.needRobotNum = 30 -- 默认需要创建30个机器人   每20分钟更新一次该值
+    self.lastNeedRobotTime = 0  -- 上次需要机器人时刻
 end
 
 -- 一局结束重置
@@ -358,6 +360,7 @@ function Room:logout(uid)
     end
 end
 
+-- 更新虚拟桌
 function Room:updateSeatsInVTable(vtable)
     if vtable and type(vtable) == "table" then
         --local msg = pb.encode("network.cmd.PBGameUpdateSeats_N", { seats = vtable:getSeatsInfo()  })
@@ -874,6 +877,15 @@ function Room:userBet(uid, linkid, rev)
                     ok = false
                     goto labelnotok
                 end
+                if Utils:isRobot(user.api) and not user.linkid then
+                    if v.bettype == EnumCowboyType.EnumCowboyType_Bull and v.betvalue > 0 and user.bets and
+                        user.bets[EnumCowboyType.EnumCowboyType_Cowboy] > 0 then
+                        v.bettype = EnumCowboyType.EnumCowboyType_Cowboy
+                    elseif v.bettype == EnumCowboyType.EnumCowboyType_Cowboy and v.betvalue > 0 and user.bets and
+                        user.bets[EnumCowboyType.EnumCowboyType_Bull] > 0 then
+                        v.bettype = EnumCowboyType.EnumCowboyType_Bull
+                    end
+                end
                 user_bets[v.bettype] = user_bets[v.bettype] + v.betvalue -- 该玩家此次在该下注区的下注总金额
                 user_totalbet = user_totalbet + v.betvalue -- 该玩家此次总下注金额
                 table.insert(remark, v.bettype)
@@ -940,6 +952,7 @@ function Room:userBet(uid, linkid, rev)
     else
         user.playerinfo.balance = 0
     end
+    self.vtable:updateMoney(uid, user.playerinfo.balance)
 
     if not self:conf().isib then -- 如果不可记账
         --log.info("idx(%s,%s) self:conf().isib = false", self.id, self.mid)
@@ -1189,7 +1202,17 @@ local function onCreateRobot(self)
     local function doRun()
         local current_time = global.ctsec() -- 当前时刻(秒)
         local currentTimeMS = global.ctms() -- 当前时刻(毫秒)
-        Utils:checkCreateRobot(self, current_time) -- 检测创建机器人
+
+        if current_time - self.lastNeedRobotTime > 600 then
+            self.lastNeedRobotTime = current_time
+            if self:conf().global_profit_switch then
+                self.needRobotNum = rand.rand_between(50, 90)
+            else
+                --self.needRobotNum = 30
+                self.needRobotNum = rand.rand_between(30, 50)
+            end
+        end
+        Utils:checkCreateRobot(self, current_time, self.needRobotNum) -- 检测创建机器人
 
         -- 检测是否在下注状态
         if self.state == EnumRoomState.Betting then -- 如果是下注状态
@@ -1211,7 +1234,7 @@ local function onCreateRobot(self)
             if current_time - self.lastRemoveRobotTime > 100 then
                 self.lastRemoveRobotTime = current_time
                 for uid, user in pairs(self.users) do
-                    if user and not user.linkid then
+                    if user and not user.linkid then   -- 如果是机器人
                         if user.playerinfo and user.playerinfo.balance <= self.minChips then
                             self.users[uid] = nil
                         elseif user.createtime and user.lifetime and current_time - user.createtime >= user.lifetime then
@@ -1718,7 +1741,8 @@ local function onFinish(self)
                 totalbet = totalbet + vv.bet
                 wincnt = wincnt + ((vv.profit > 0) and 1 or 0)
             end
-            if totalbet > 0 then
+            --if totalbet > 0 then
+            if v and v.state == EnumUserState.Playing then
                 table.insert(
                     self.onlinelst,
                     {
@@ -1726,7 +1750,8 @@ local function onFinish(self)
                         uid = k,
                         username = v.playerinfo and v.playerinfo.username or "",
                         nickurl = v.playerinfo and v.playerinfo.nickurl or "",
-                        balance = self:getUserMoney(k) - (v.totalbet or 0)
+                        --balance = self:getUserMoney(k) - (v.totalbet or 0)
+                        balance = self:getUserMoney(k)
                     },
                     totalbet = totalbet,
                     wincnt = wincnt
@@ -1827,8 +1852,8 @@ function Room:finish()
     self.finish_time = global.ctms()
 
     local lastlogitem = self.logmgr:back()
-    local totalbet, usertotalbet = 0, 0
-    local totalprofit, usertotalprofit = 0, 0
+    local totalbet, usertotalbet = 0, 0        -- 所有玩家总下注，所有真实玩家总下注
+    local totalprofit, usertotalprofit = 0, 0  -- 所有玩家总盈利，所有真实玩家总盈利
     local ranks = {}
     local onlinerank = {
         -- 在线排名信息
@@ -1895,6 +1920,17 @@ function Room:finish()
                 end -- end of if bets > 0 then
             end -- end of for _, bettype in ipairs(DEFAULT_BET_TYPE) do
 
+            --盈利扣水
+            if v.totalpureprofit > 0 and (self:conf().rebate or 0) > 0 then
+                local rebate = math.floor(v.totalpureprofit * self:conf().rebate)
+                v.totalprofit = v.totalprofit - rebate
+                v.totalpureprofit = v.totalpureprofit - rebate
+            end
+
+            v.playerinfo = v.playerinfo or { }
+            v.playerinfo.balance = v.playerinfo.balance or 0
+            v.playerinfo.balance = v.playerinfo.balance + v.totalprofit
+
             if 0 == v.totalpureprofit then
                 v.playchips = 0
             end
@@ -1922,24 +1958,18 @@ function Room:finish()
 
             totalprofit = totalprofit + v.totalprofit
 
-            --盈利扣水
-            if v.totalpureprofit > 0 and (self:conf().rebate or 0) > 0 then
-                local rebate = math.floor(v.totalpureprofit * self:conf().rebate)
-                v.totalprofit = v.totalprofit - rebate
-                v.totalpureprofit = v.totalpureprofit - rebate
-            end
             -- 牌局统计
             self.sdata.users = self.sdata.users or {}
             self.sdata.users[k] = self.sdata.users[k] or {} --uid为k的玩家
             self.sdata.users[k].totalbet = v.totalbet
-            self.sdata.users[k].totalprofit = v.totalprofit
-            self.sdata.users[k].totalpureprofit = v.totalpureprofit
+            self.sdata.users[k].totalprofit = v.totalprofit  -- 该玩家总盈利
+            self.sdata.users[k].totalpureprofit = v.totalpureprofit  -- 该玩家纯盈利
             self.sdata.users[k].totalfee = v.totalfee
 
-            if not Utils:isRobot(v.api) then
-                usertotalprofit = usertotalprofit + v.totalprofit
-                usertotalbet = usertotalbet + v.totalbet
-                self.sdata.users[k].ugameinfo = { texas = { inctotalhands = 1 } }
+            if not Utils:isRobot(v.api) then  -- 如果不是机器人
+                usertotalprofit = usertotalprofit + v.totalprofit --真实玩家总盈利
+                usertotalbet = usertotalbet + v.totalbet  -- 真实玩家总下注
+                self.sdata.users[k].ugameinfo = {texas = {inctotalhands = 1}}
             end
 
             -- ranks
