@@ -2968,7 +2968,7 @@ function Room:dealHandCards()
                 log.debug("idx(%s,%s,%s) global control 2", self.id, self.mid, self.logid)
                 self:dealCardsCommon(nil, loserSeat, 0)
             end            
-       elseif randV <= 2700 then
+       elseif randV <= 2200 then
             self.isControl = true
             -- 12%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
             local winnerSeat = realPlayerSeatList[rand.rand_between(1, #realPlayerSeatList)]
