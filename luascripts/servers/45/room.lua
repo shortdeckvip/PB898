@@ -2676,7 +2676,7 @@ function Room:isGlodDice()
         return false
     end
 
-    if rand.rand_between(1, 10000) <= 0 then  --20%概率
+    if rand.rand_between(1, 10000) <= 2000 then  --20%概率
         return true
     end
 
