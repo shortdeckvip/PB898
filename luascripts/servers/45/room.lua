@@ -1547,11 +1547,13 @@ function Room:show()
                 log.info("idx(%s,%s) tigh mode is trigger", self.mid, self.id)
                 local rnd = rand.rand_between(1, 10000)
                 if profit_rate < self:conf().profitrate_threshold_minilimit or rnd <= 5000 then
+                    self.winTimes = 1
                     local realPlayerWin = self:GetRealPlayerWin(wintype)
                     if realPlayerWin > 10000 then
                         -- 需要确保系统赢，换牌系统不一定赢
                         self:getCardsByResult(-1, 0)  -- 确保真实玩家输
                         wintype = self.poker:getWinType(self.cards) -- 获取赢的一方及赢牌所在位置
+                        profit_rate, usertotalbet_inhand, usertotalprofit_inhand = self:getTotalProfitRate(wintype)
                     end
                 end
             end
@@ -2096,7 +2098,7 @@ function Room:getTotalProfitRate(wintype)
         usertotalbet_inhand = usertotalbet_inhand + (self.userbets[v] or 0)
         if wintype == v then
             usertotalprofit_inhand = usertotalprofit_inhand +
-                (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1])
+                (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1]) * self.winTimes
         end
     end
     totalbets = totalbets + usertotalbet_inhand    -- 真实玩家总下注额 
@@ -2590,15 +2592,15 @@ function Room:getCardsByResult(res, maxwin)
     end
 
     --根据需要的牌型获取牌数据
-    if 1 == needCardsType then
+    if 1 == needCardsType then   -- 两骰子点数和<7
         local randValue = rand.rand_between(1, 5)
         self.cards[1] = 0x100 + randValue
         self.cards[2] = 0x100 + rand.rand_between(1, 6-randValue)
-    elseif 2 == needCardsType then
+    elseif 2 == needCardsType then  -- 两骰子点数和==7
         local randValue = rand.rand_between(1, 6)
         self.cards[1] = 0x100 + randValue
         self.cards[2] = 0x100 + 7-randValue
-    else
+    else  -- 两骰子点数>7
         local randValue = rand.rand_between(2, 6)
         self.cards[1] = 0x100 + randValue
         self.cards[2] = 0x100 + rand.rand_between(8-randValue, 6)
@@ -2612,10 +2614,6 @@ function Room:isGlodDice()
     -- :getTotalProfitRate
     local totalbets, totalprofit = 0, 0 -- 总下注额,总收益
     local sn = 0
-
-    -- if rand.rand_between(1, 10000) <= 10000 then  --20%概率
-    --     return true
-    -- end
 
     for k, v in g.pairsByKeys(
         self.total_bets,

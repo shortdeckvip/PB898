@@ -18,7 +18,7 @@ local EnumRoomState = {
 
 --overwrite
 Utils = {}
-SLOT_INFO = { total_bets = {}, total_profit = {} }
+SLOT_INFO = SLOT_INFO or { total_bets = {}, total_profit = {} }
 
 local USERINFO_SERVER_TYPE = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_UserInfo") << 16
 local MONEY_SERVER_TYPE = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Money") << 16

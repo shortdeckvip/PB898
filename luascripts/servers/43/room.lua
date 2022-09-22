@@ -647,8 +647,9 @@ function Room:init()
     self.tableStartCount = 0
     self.logid = self.statistic:genLogId() -- 日志ID
 
-    self.total_bets = SLOT_INFO.total_bets -- {} -- 存放各天的总下注额
-    self.total_profit = SLOT_INFO.total_profit -- {} -- 存放各天的总收益
+    log.debug("dqw Room:init()")
+    -- self.total_bets = SLOT_INFO.total_bets -- {} -- 存放各天的总下注额
+    -- self.total_profit = SLOT_INFO.total_profit -- {} -- 存放各天的总收益
 end
 
 function Room:check()
@@ -1473,6 +1474,11 @@ end
 -- 参数 money: 押注金额
 -- 参数 linkid:
 function Room:userchipin(uid, type, money, linkid)
+    if not self.total_bets then
+        self.total_bets = SLOT_INFO.total_bets -- {} -- 存放各天的总下注额
+        self.total_profit = SLOT_INFO.total_profit -- {} -- 存放各天的总收益
+    end
+
     log.info(
         "idx(%s,%s,%s) userchipin(): uid=%s, type=%s, money=%s, freeSpinTimes=%s,state=%s",
         self.id,
