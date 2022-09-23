@@ -45,7 +45,7 @@
 	<table id="29" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
 	<table id="30" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="20" fourkind="2" straightflush="5" royalflush="25"/>
     
-    <table id="31" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
-    <table id="32" roomtype="2" name="" initmoney="0" deltabb="0.5" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+    <table id="31" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
+    <table id="32" roomtype="2" name="" initmoney="0" deltabb="1" profitbb="10" fourkind="5" straightflush="20" royalflush="50"/>
 	
 </XGAME>
