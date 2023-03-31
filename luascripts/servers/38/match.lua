@@ -25,7 +25,7 @@ local conf = {
 		min_onbank_moneycnt = 5000000,		-- 上庄需要最低金币数量
 		min_outbank_moneycnt = 2000000,		-- 下庄需要最低金币数量
 		init_banker_money = 1000000000,		-- 系统庄初始金币数量
-
+        profit_max_win = 10,
         profitrate_threshold_lowerlimit = -0.05, -- 盈利阈值触发收紧策略
         profitrate_threshold_upperlimit = 0.3, -- 盈利阈值触发防水策略
         profitrate_threshold_maxdays = 3, -- 盈利阈值触发盈利天数

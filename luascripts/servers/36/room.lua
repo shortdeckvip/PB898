@@ -499,6 +499,8 @@ function Room:init()
     self.finish_type = 1 -- 结束方式 1：普通结束  2:死亡结束
     self.lastOutCard = 0 -- 最近出的牌
     self.logid = self.statistic:genLogId()
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
+     
 end
 
 function Room:reload()
@@ -788,6 +790,9 @@ function Room:userLeave(uid, linkid, client)
             profits = changed -- totalProfit   -- 从进入房间到离开房间这段时间的总收益
         }
     )
+    if not Utils:isRobot(user.api) then
+        Utils:updateChipsNum(global.sid(), uid, 0)
+    end
     self.users[uid] = nil -- 成功离开房间后，将玩家置空
     self.user_cached = false -- 玩家缓存变更(无效)
 
@@ -1030,6 +1035,9 @@ function Room:userInto(uid, linkid, mid, quick, ip, api)
                             timer.destroy(user.TimerID_MutexTo)
                             timer.destroy(user.TimerID_Timeout)
                             timer.destroy(user.TimerID_Expense)
+                            if not Utils:isRobot(self.users[uid].api) then
+                                Utils:updateChipsNum(global.sid(), uid, 0)
+                            end
                             self.users[uid] = nil
                             net.send(
                                 linkid,
@@ -1169,7 +1177,8 @@ function Room:userTableInfo(uid, linkid, rev)
         jp = JackpotMgr:getJackpotById(self.conf.jpid),
         jpRatios = g.copy(JACKPOT_CONF[self.conf.jpid] and JACKPOT_CONF[self.conf.jpid].percent or {0, 0, 0}),
         discardCard = g.copy(self.poker:getDiscardCards() or {}), -- 已发的牌 ，该游戏改成已出的牌
-        readyLeftTime = ((self.t_msec or 0) / 1000 + TimerID.TimerID_Check[2] / 1000) - (global.ctsec() - self.endtime)
+        readyLeftTime = ((self.t_msec or 0) / 1000 + TimerID.TimerID_Check[2] / 1000) - (global.ctsec() - self.endtime),
+        maxinto = (self.conf.maxinto or 0) * (self.conf.ante or 0) / (self.conf.sb or 1)
     }
     -- tableinfo.readyLeftTime =
     --     self.ready_start_time and TimerID.TimerID_Ready[2] - (global.ctsec() - self.ready_start_time) or
@@ -1364,6 +1373,9 @@ function Room:stand(seat, uid, stype)
             user.totalbuyin = seat.totalbuyin -- 玩家总买入筹码
             user.active_stand = true
             seat:stand(uid)
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), uid, user.chips)
+            end
             pb.encode(
                 "network.cmd.PBTexasPlayerStand",
                 {sid = seat.sid, type = stype},
@@ -1737,6 +1749,7 @@ function Room:start()
 
     -- 底注
     self:dealPreChips()
+
 end
 
 -- 检测是否轮到该玩家出牌
@@ -2546,6 +2559,9 @@ function Room:finish()
                     self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
                 end
             end
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), user.uid, seat.chips)
+            end
         end
     end
     --log.info("idx(%s,%s) appendLogs(),self.sdata=%s", self.id, self.mid, cjson.encode(self.sdata))
@@ -2775,6 +2791,9 @@ function Room:userBuyin(uid, linkid, rev, system)
             user.totalbuyin = seat.totalbuyin -- 玩家总买入
 
             seat:buyinToChips() -- 将买入金额转换为筹码
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), uid, seat.chips)
+            end
 
             pb.encode(
                 "network.cmd.PBTexasPlayerBuyin",
@@ -3406,3 +3425,5 @@ end
 function Room:hasEnoughChips(uid)
     return true
 end
+
+

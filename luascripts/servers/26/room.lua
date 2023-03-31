@@ -569,6 +569,7 @@ function Room:init()
     self.maxCardsIndex = 0 -- 最大牌所在位置
     self.minCardsIndex = 0 -- 最小牌所在位置
     self.isControl = false
+    self.calcChipsTime = 0  -- 计算筹码时刻(秒)
 end
 
 function Room:reload()
@@ -881,6 +882,9 @@ function Room:userLeave(uid, linkid)
         timer.destroy(user.TimerID_Expense)
     end
 
+    if not Utils:isRobot(self.users[uid].api) then
+        Utils:updateChipsNum(global.sid(), uid, 0)
+    end
     self.users[uid] = nil
     self.user_cached = false
 
@@ -1161,6 +1165,9 @@ function Room:userInto(uid, linkid, mid, quick, ip, api)
                             timer.destroy(user.TimerID_MutexTo)
                             timer.destroy(user.TimerID_Timeout)
                             timer.destroy(user.TimerID_Expense)
+                            if not Utils:isRobot(self.users[uid].api) then
+                                Utils:updateChipsNum(global.sid(), uid, 0)
+                            end
                             self.users[uid] = nil
                         end
                         log.info(
@@ -1372,7 +1379,8 @@ function Room:userTableInfo(uid, linkid, rev)
         jpid = self.conf.jpid or 0,
         jp = JackpotMgr:getJackpotById(self.conf.jpid),
         jp_ratios = g.copy(JACKPOT_CONF[self.conf.jpid] and JACKPOT_CONF[self.conf.jpid].percent or {0, 0, 0}),
-        middlebuyin = self.conf.referrerbb * self.conf.sb
+        middlebuyin = self.conf.referrerbb * self.conf.sb,
+        maxinto = (self.conf.maxinto or 0) * 2 -- * (self.conf.sb or 0)
     }
 
     if self.conf.matchtype == pb.enum_id("network.cmd.PBTexasMatchType", "PBTexasMatchType_Regular") then
@@ -1881,6 +1889,9 @@ function Room:stand(seat, uid, stype)
         user.active_stand = true
 
         seat:stand(uid)
+        if not Utils:isRobot(user.api) then
+            Utils:updateChipsNum(global.sid(), uid, user.chips)
+        end
         pb.encode(
             "network.cmd.PBTexasPlayerStand",
             {sid = seat.sid, type = stype},
@@ -2167,6 +2178,7 @@ function Room:start()
 
     -- 前注，大小盲处理
     self:dealPreChips()
+
 end
 
 function Room:checkCanChipin(seat)
@@ -4029,6 +4041,10 @@ function Room:roundOver()
             if seat.chiptype ~= pb.enum_id("network.cmd.PBTexasChipinType", "PBTexasChipinType_FOLD") then
                 allinset[seat.roundmoney] = 1
             end
+            local user = self.users[seat.uid]
+            if user and not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), seat.uid, seat.chips or 0)
+            end
         end
     end
 
@@ -4515,6 +4531,9 @@ function Room:userBuyin(uid, linkid, rev, system)
                     self.state == pb.enum_id("network.cmd.PBTexasTableState", "PBTexasTableState_None")
              then
                 seat:buyinToChips()
+                if not Utils:isRobot(user.api) then
+                    Utils:updateChipsNum(global.sid(), uid, seat.chips)
+                end
             else
                 is_immediately = false
             end
@@ -6192,3 +6211,5 @@ function Room:inCards(cards, subcards)
 end
 
 -- 若需要某玩家赢，先发手牌(牌力>=7的牌)
+
+

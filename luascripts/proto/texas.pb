@@ -1,5 +1,5 @@
 
-çM
+ßM
 texas.protonetwork.cmdcommon.proto"û
 PBTexasSeat+
 seat (2.network.cmd.PBSeatInfoRseat
@@ -23,7 +23,7 @@ chipinTime
 reserveSeat (RreserveSeat
 	totalTime (R	totalTime 
 addtimeCost (RaddtimeCost"
-addtimeCount (RaddtimeCount"é
+addtimeCount (RaddtimeCount"®
 PBTexasTableInfo
 gameId (RgameId
 	seatCount (R	seatCount
@@ -65,7 +65,8 @@ matchStateL
 jpid (Rjpid
 jp (Rjp
 	jp_ratios (RjpRatios 
-middlebuyin (Rmiddlebuyin"W
+middlebuyin (Rmiddlebuyin
+maxinto  (Rmaxinto"W
 PBTexasTableInfoReq,
 idx (2.network.cmd.RoomIndexDataRidx
 lang (	Rlang"S

@@ -646,6 +646,7 @@ function Room:init()
     self.cards = { 0x06, 0x0c, 0x0B, 0x02, 0x02, 0x03, 0x09, 0x0d, 0x01, 0x02, 0x03, 0x02, 0x02, 0x03, 0x01 }
     self.tableStartCount = 0
     self.logid = self.statistic:genLogId() -- 日志ID
+    self.calcChipsTime = 0                 -- 计算筹码时刻(秒)
 
     log.debug("dqw Room:init()")
     -- self.total_bets = SLOT_INFO.total_bets -- {} -- 存放各天的总下注额
@@ -1392,7 +1393,7 @@ function Room:userLeave(uid, linkid)
             pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2AS"),
             pb.enum_id("network.inter.Game2ASSubCmd", "Game2ASSubCmd_SysAssignRoom"),
             synto
-        )
+        )        
     end
 
     if user.TimerID_Timeout then
@@ -1478,7 +1479,6 @@ function Room:userchipin(uid, type, money, linkid)
         self.total_bets = SLOT_INFO.total_bets -- {} -- 存放各天的总下注额
         self.total_profit = SLOT_INFO.total_profit -- {} -- 存放各天的总收益
     end
-
     log.info(
         "idx(%s,%s,%s) userchipin(): uid=%s, type=%s, money=%s, freeSpinTimes=%s,state=%s",
         self.id,
@@ -1961,8 +1961,6 @@ function Room:phpMoneyUpdate(uid, rev)
         elseif self:conf().roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Coin") then
             user.playerinfo.balance = user.coin
         end
-
-
     end
 end
 
@@ -2586,3 +2584,4 @@ function Room:getJackpot()
 
     Utils:requestJackpotChange(self.gamelog)
 end
+

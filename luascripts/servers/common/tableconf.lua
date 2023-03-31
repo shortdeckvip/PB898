@@ -341,7 +341,7 @@ local function loadMiniGameXml()
     XML.destroydoc(doc)
 end
 
-local MINI_GAME_STYPE = {31, 32, 35, 38, 42, 43, 45, 47, 48}
+local MINI_GAME_STYPE = {31, 32, 35, 38, 42, 43, 45, 47, 48, 49, 50, 51, 52, 53}
 if g.isInTable(MINI_GAME_STYPE, global.stype()) then
     loadMiniGameXml()
     log.info(cjson.encode(MINIGAME_CONF))
@@ -362,7 +362,8 @@ end
 
 -- 2021-11-4
 -- load slot game config file  slot.xml
-SLOT_CONF = {simple = {}, normal = {}, hard = {}, freeSpin = {}, lineInfo = {}, lineNum = 0, lineCol = 0, lineRow = 0}
+SLOT_CONF = {simple = {}, normal = {}, hard = {}, freeSpin = {}, lineInfo = {}, lineNum = 0, lineCol = 0, lineRow = 0,
+lineInfoFarm={}, lineInfoSea={}, lineInfoShip={}}
 
 local function loadSlotGameXml()
     local doc = XML.createdoc()
@@ -479,7 +480,8 @@ local function loadSlotGameXml()
         end
         while tb do
             local i = 1
-            local lineData = {id = 0, name = XML.attribute(tb, "name"), col = {}}
+            --local lineData = {id = 0, name = XML.attribute(tb, "name"), col = {}}
+            local lineData = {id = 0, col = {}}
             lineData.id = XML.intattribute(tb, "id")
             if lineData.id > SLOT_CONF.lineNum then
                 SLOT_CONF.lineNum = lineData.id -- 线条总数
@@ -551,6 +553,92 @@ local function loadSlotGameXml()
             end
 
             table.insert(SLOT_CONF.lineInfo, lineData)
+            local oldtb = tb
+            tb = XML.nextsibling(tb)
+            XML.destroyelement(oldtb)
+        end
+
+        tb = XML.firstchild(root, "LineInfoFarm") -- 线条信息
+        if tb then
+            tb = XML.firstchild(tb, "elem")
+        end
+        while tb do
+            local i = 1
+            local lineData = {id = 0, col = {}}
+            lineData.id = XML.intattribute(tb, "id")
+            lineData.col[1] = XML.intattribute(tb, "col1")
+            lineData.col[2] = XML.intattribute(tb, "col2")
+            lineData.col[3] = XML.intattribute(tb, "col3")
+            lineData.col[4] = XML.intattribute(tb, "col4")
+            lineData.col[5] = XML.intattribute(tb, "col5")
+            lineData.col[6] = XML.intattribute(tb, "col6")
+            lineData.col[7] = XML.intattribute(tb, "col7")
+            lineData.col[8] = XML.intattribute(tb, "col8")
+            lineData.col[9] = XML.intattribute(tb, "col9")
+            lineData.col[10] = XML.intattribute(tb, "col10")
+
+            table.insert(SLOT_CONF.lineInfoFarm, lineData)
+            local oldtb = tb
+            tb = XML.nextsibling(tb)
+            XML.destroyelement(oldtb)
+        end
+
+        tb = XML.firstchild(root, "LineInfoSea") -- 线条信息
+        if tb then
+            tb = XML.firstchild(tb, "elem")
+        end
+        while tb do
+            local i = 1
+            local lineData = {id = 0, col = {}}
+            lineData.id = XML.intattribute(tb, "id")
+
+            lineData.col[1] = XML.intattribute(tb, "col1")
+            lineData.col[2] = XML.intattribute(tb, "col2")
+            lineData.col[3] = XML.intattribute(tb, "col3")
+            lineData.col[4] = XML.intattribute(tb, "col4")
+            lineData.col[5] = XML.intattribute(tb, "col5")
+            lineData.col[6] = XML.intattribute(tb, "col6")
+            lineData.col[7] = XML.intattribute(tb, "col7")
+            lineData.col[8] = XML.intattribute(tb, "col8")
+            lineData.col[9] = XML.intattribute(tb, "col9")
+            lineData.col[10] = XML.intattribute(tb, "col10")
+
+            table.insert(SLOT_CONF.lineInfoSea, lineData)
+            local oldtb = tb
+            tb = XML.nextsibling(tb)
+            XML.destroyelement(oldtb)
+        end
+
+        tb = XML.firstchild(root, "LineInfoShip") -- 线条信息
+        if tb then
+            tb = XML.firstchild(tb, "elem")
+        end
+        while tb do
+            local i = 1
+            local lineData = {id = 0, col = {}}
+            lineData.id = XML.intattribute(tb, "id")
+
+            lineData.col[1] = XML.intattribute(tb, "col1")
+            lineData.col[2] = XML.intattribute(tb, "col2")
+            lineData.col[3] = XML.intattribute(tb, "col3")
+            lineData.col[4] = XML.intattribute(tb, "col4")
+            lineData.col[5] = XML.intattribute(tb, "col5")
+            lineData.col[6] = XML.intattribute(tb, "col6")
+            lineData.col[7] = XML.intattribute(tb, "col7")
+            lineData.col[8] = XML.intattribute(tb, "col8")
+            lineData.col[9] = XML.intattribute(tb, "col9")
+            lineData.col[10] = XML.intattribute(tb, "col10")
+            -- if 0 == SLOT_CONF.lineCol and 0 == lineData.col[10] then
+            --     SLOT_CONF.lineCol = 9
+            -- end
+            -- if lineData.col[10] > SLOT_CONF.lineRow then
+            --     SLOT_CONF.lineRow = lineData.col[10]
+            -- end
+            -- if 0 == SLOT_CONF.lineCol then
+            --     SLOT_CONF.lineCol = 10 -- 最大10列
+            -- end
+
+            table.insert(SLOT_CONF.lineInfoShip, lineData)
             local oldtb = tb
             tb = XML.nextsibling(tb)
             XML.destroyelement(oldtb)

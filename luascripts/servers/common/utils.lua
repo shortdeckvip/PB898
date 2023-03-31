@@ -19,6 +19,9 @@ local EnumRoomState = {
 --overwrite
 Utils = {}
 SLOT_INFO = SLOT_INFO or { total_bets = {}, total_profit = {} }
+SLOT_FARM_INFO = SLOT_FARM_INFO or { total_bets = {}, total_profit = {} }
+SLOT_SEA_INFO = SLOT_SEA_INFO or { total_bets = {}, total_profit = {} }
+SLOT_SHIP_INFO = SLOT_SHIP_INFO or { total_bets = {}, total_profit = {} }
 
 local USERINFO_SERVER_TYPE = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_UserInfo") << 16
 local MONEY_SERVER_TYPE = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Money") << 16
@@ -109,12 +112,12 @@ function Utils:postMail(acid, uids, mailtype, title, content)
         pb.encode(
             "network.inter.PBPostMailReq",
             {
-            acid = acid,
-            uid = uids,
-            type = mailtype,
-            title = title,
-            content = content
-        }
+                acid = acid,
+                uid = uids,
+                type = mailtype,
+                title = title,
+                content = content
+            }
         )
     )
 end
@@ -587,6 +590,29 @@ function Utils:serializeMiniGame(room, sid, id)
     end
 end
 
+
+-- 参数 serverid: 服务器ID
+-- 参数 uid: 玩家ID
+-- 参数 chipsNum: 当前玩家身上筹码数
+function Utils:updateChipsNum(serverid, uid, chipsNum)
+    if serverid and uid and chipsNum then
+        local hash_key = string.format("CHIPS|%d", uid)
+        local field_name = string.format("s%d", serverid)
+        local value = string.format("%d", chipsNum)
+        local set_value = string.format("%d|%d", serverid, uid)
+        --log.debug("updateChipsNum() serverid=%s, uid=%s, chipsNum=%s", serverid, uid, chipsNum)
+        --redis.set(5000, key, value, true)
+        if chipsNum ~= 0 then
+            redis.hset(5000, hash_key, field_name, value, true)
+            redis.sadd(5000, "CHIPS|PLAYING", set_value, true)
+        else
+            redis.hdel(5000, hash_key, field_name, true)
+            redis.srem(5000, "CHIPS|PLAYING", set_value, true)
+        end
+    end
+end
+
+
 -- 在线人数
 function Utils:getVirtualPlayerCount(room)
     local playerCount = 0
@@ -714,7 +740,12 @@ function Utils:addRobot(room, robotsInfo)
                 --room.users[uid].playerinfo.currency
                 room.users[uid].playerinfo.extra    = {}
                 room.users[uid].createtime          = global.ctsec() -- 创建时刻(秒)
-                room.users[uid].lifetime            = self:getRandLiftTime()   --rand.rand_between(600, 6000) -- 生存时间长度(秒)
+                room.users[uid].lifetime            = self:getRandLiftTime() --rand.rand_between(600, 6000) -- 生存时间长度(秒)
+                room.users[uid].totalbet = room.users[uid].totalbet or 0  -- 总下注金额
+                room.users[uid].profit = room.users[uid].profit or 0
+                room.users[uid].totalprofit = room.users[uid].totalprofit or 0
+                room.users[uid].totalpureprofit = room.users[uid].totalpureprofit or 0
+                room.users[uid].totalfee = room.users[uid].totalfee or 0
                 --room.users[uid].playerinfo.extra.ip
                 --room.users[uid].playerinfo.extra.api
             end
@@ -870,21 +901,39 @@ function Utils:robotBet(room)
     local confInfo = room:conf()
 
     if room.state == EnumRoomState.Betting then -- 如果是在下注状态
-        -- 遍历所有机器人
-        for uid, user in pairs(room.users) do -- 遍历所有玩家
-            if user and not user.linkid then  -- 如果是机器人
-                -- 获取随机值
-                local randValue = rand.rand_between(0, 10000)
-                if randValue < 300 then -- 3%的概率下注
-                    local betInfo = { idx = {}, data = {} } -- 下注信息
-                    betInfo.idx.roomid = room.id
-                    betInfo.idx.matchid = room.mid
-                    betInfo.data.uid = uid -- 玩家ID
-                    betInfo.data.areabet = {} -- 下注区域信息
-                    betInfo.data.areabet[1] = {}
-                    betInfo.data.areabet[1].bettype = self:getBetArea(room) -- 下注区域
-                    betInfo.data.areabet[1].betvalue = self:getBetChip(room, room:getUserMoney(uid)) --下注金额
-                    room:userBet(uid, nil, betInfo)
+        if global.stype() == 52 then
+            -- 遍历所有机器人
+            for uid, user in pairs(room.users) do -- 遍历所有玩家
+                if user and not user.linkid then -- 如果是机器人
+                    -- 获取随机值
+                    local randValue = rand.rand_between(0, 10000)
+                    if randValue < 300 then -- 3%的概率下注
+                        local betInfo = { idx = {}, data = {} } -- 下注信息
+                        betInfo.idx.roomid = room.id
+                        betInfo.idx.matchid = room.mid
+                        betInfo.value = self:getBetChip(room, room:getUserMoney(uid)) --下注金额
+
+                        room:userBet(uid, nil, betInfo)
+                    end
+                end
+            end
+        else
+            -- 遍历所有机器人
+            for uid, user in pairs(room.users) do -- 遍历所有玩家
+                if user and not user.linkid then -- 如果是机器人
+                    -- 获取随机值
+                    local randValue = rand.rand_between(0, 10000)
+                    if randValue < 300 then -- 3%的概率下注
+                        local betInfo = { idx = {}, data = {} } -- 下注信息
+                        betInfo.idx.roomid = room.id
+                        betInfo.idx.matchid = room.mid
+                        betInfo.data.uid = uid -- 玩家ID
+                        betInfo.data.areabet = {} -- 下注区域信息
+                        betInfo.data.areabet[1] = {}
+                        betInfo.data.areabet[1].bettype = self:getBetArea(room) -- 下注区域
+                        betInfo.data.areabet[1].betvalue = self:getBetChip(room, room:getUserMoney(uid)) --下注金额
+                        room:userBet(uid, nil, betInfo)
+                    end
                 end
             end
         end

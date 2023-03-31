@@ -1,5 +1,5 @@
 
-˜,
+²,
 pokdeng.protonetwork.cmdcommon.proto"¢
 PBPokDengSeat+
 seat (2.network.cmd.PBSeatInfoRseat
@@ -12,7 +12,7 @@ chipinType
 	handcards (R	handcards
 pot (Rpot
 cardtype (Rcardtype
-wintimes	 (Rwintimes"Ü
+wintimes	 (Rwintimes"ö
 PBPokDengTableInfo
 gameId (RgameId
 	seatCount (R	seatCount
@@ -42,7 +42,8 @@ maxbuyinbb
 	addBetMin (R	addBetMin
 	addBetMax (R	addBetMax&
 bankerMinMoney (RbankerMinMoney(
-stateTimeLength (RstateTimeLength"W
+stateTimeLength (RstateTimeLength
+maxinto (Rmaxinto"W
 PBPokDengTableInfoResp=
 	tableInfo (2.network.cmd.PBPokDengTableInfoR	tableInfo"‹
 PBPokDengOperateReq_C,

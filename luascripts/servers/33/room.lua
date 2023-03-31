@@ -130,7 +130,7 @@ end
 local function onHandCardsAnimation(self)
     local function doRun()
         log.debug(
-            "idx(%s,%s,%s) onHandCardsAnimation:%s,%s",
+            "idx(%s,%s,%s) onHandCardsAnimation(),current_betting_pos=%s,buttonpos=%s",
             self.id,
             self.mid,
             tostring(self.logid),
@@ -177,6 +177,7 @@ local function onBuyin(t)
 
     g.call(doRun)
 end
+
 
 -- 未调用该函数
 local function onRobotLeave(self)
@@ -525,6 +526,8 @@ function Room:init()
 
     self.lastDealSpecialCardsTime = 0 -- 上次发特殊牌时刻(未充值玩家并且，玩牌局数>5,80%触发特殊牌局（5分钟内只能触发一次)
     self.isControl = false -- 是否控制真实玩家输赢
+    self.sameStraightFlushNum = 0
+    self.calcChipsTime = 0            -- 计算筹码时刻(秒)
 end
 
 -- 重新加载配置
@@ -887,6 +890,9 @@ function Room:userLeave(uid, linkid)
         timer.destroy(user.TimerID_Expense)
     end
 
+    if not Utils:isRobot(self.users[uid].api) then
+        Utils:updateChipsNum(global.sid(), uid, 0)
+    end
     self.users[uid] = nil
     self.user_cached = false
 
@@ -1186,6 +1192,9 @@ function Room:userInto(uid, linkid, mid, quick, ip, api)
                             timer.destroy(user.TimerID_MutexTo)
                             timer.destroy(user.TimerID_Timeout)
                             timer.destroy(user.TimerID_Expense)
+                            if not Utils:isRobot(self.users[uid].api) then
+                                Utils:updateChipsNum(global.sid(), uid, 0)
+                            end
                             self.users[uid] = nil
                             net.send(
                                 linkid,
@@ -1294,7 +1303,8 @@ function Room:reset()
     self.req_show_dealcard = false
     self.lastchipintype = pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_NULL")
     self.lastchipinpos = 0
-    self.m_dueled_pos, self.m_dueler_pos = 0, 0
+    self.m_dueled_pos = 0 -- 被比牌者座位号
+    self.m_dueler_pos = 0 -- 发起比牌者座位号
     self.has_cheat = false
     self.round_player_num = 0
     self.is_trigger_fold = false
@@ -1307,6 +1317,10 @@ function Room:reset()
         end
     end
     self.isControl = false
+    self.secondCardsType = nil
+    self.secondUid = nil
+    self.firstCardsType = nil
+    self.firstUid = nil
 end
 
 function Room:potRake(total_pot_chips)
@@ -1361,7 +1375,8 @@ function Room:userTableInfo(uid, linkid, rev)
         potLimit = TEEMPATTICONF.max_pot_limit * self.conf.ante,
         duelerPos = self.m_dueler_pos,
         dueledPos = self.m_dueled_pos,
-        middlebuyin = self.conf.referrerbb * self.conf.ante
+        middlebuyin = self.conf.referrerbb * self.conf.ante,
+        maxinto = (self.conf.maxinto or 0) * (self.conf.ante or 0) / (self.conf.sb or 1)
     }
     log.debug(
         "idx(%s,%s,%s) uid:%s userTableInfo:%s",
@@ -1512,7 +1527,7 @@ function Room:getNextActionPosition(seat)
         local j = i % #self.seats > 0 and i % #self.seats or #self.seats
         local seati = self.seats[j]
         if seati and seati.isplaying and
-            seati.chiptype ~= pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD")
+            seati.chiptype ~= pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD") -- 如果该座位参与游戏且未弃牌
         then
             seati.addon_count = 0
             return seati
@@ -1523,6 +1538,7 @@ end
 
 -- 获取下一个比牌位置
 -- 参数 seat: 发起比牌者座位
+-- 返回值: 返回被比牌者座位
 function Room:getNextDuelPosition(seat)
     -- 两人明牌
     local nonfolds = self:getNonFoldSeats()
@@ -1683,6 +1699,9 @@ function Room:stand(seat, uid, stype)
         user.active_stand = true
 
         seat:stand(uid)
+        if not Utils:isRobot(user.api) then -- 如果不是机器人
+            Utils:updateChipsNum(global.sid(), uid, user.chips)
+        end
         pb.encode(
             "network.cmd.PBTexasPlayerStand",
             { sid = seat.sid, type = stype },
@@ -1940,6 +1959,7 @@ function Room:start()
                 self.has_player_inplay = true -- 有真实玩家参与游戏
                 -- 查询玩家充值金额
                 if self.conf and self.conf.special and self.conf.special == 1 then -- 如果是特殊牌局
+                    log.debug("queryChargeInfo() real player uid=%s", v.uid)
                     Utils:queryChargeInfo(v.uid, 33, self.mid, self.id)
                 end
             end
@@ -1947,6 +1967,9 @@ function Room:start()
             if self.conf and self.conf.fee and v.chips > self.conf.fee then
                 v.last_chips = v.chips
                 v.chips = v.chips - self.conf.fee
+                if not Utils:isRobot(user.api) then
+                    Utils:updateChipsNum(global.sid(), user.uid, v.chips)
+                end
                 -- 统计
                 self.sdata.users = self.sdata.users or {}
                 self.sdata.users[v.uid] = self.sdata.users[v.uid] or {}
@@ -2083,16 +2106,17 @@ function Room:checkFinish()
     return false
 end
 
--- 比牌超时？
--- 参数 nofold: 没有弃牌者?
+-- 比牌超时
+-- 参数 nofold: 没有弃牌者
 local function onDuelCard(arg)
     local function doRun()
-        local self = arg[1]
+        local self = arg[1] -- 房间对象
         local nofold = arg[2]
-        timer.cancel(self.timer, TimerID.TimerID_Dueling[1])
+        timer.cancel(self.timer, TimerID.TimerID_Dueling[1]) -- 关闭比牌定时器
+
         self.state = pb.enum_id("network.cmd.PBTeemPattiTableState", "PBTeemPattiTableState_Betting") -- 比牌结束，进入下注状态
-        local dueler = self.seats[self.m_dueler_pos] -- 发起比牌者
-        local loser = self.seats[self.m_duel_loser_pos]
+        local dueler = self.seats[self.m_dueler_pos] -- 发起比牌者座位
+        local loser = self.seats[self.m_duel_loser_pos] -- 比牌输家座位
         log.debug(
             "idx(%s,%s,%s) onDuelCard() self.m_dueler_pos=%s, self.m_duel_loser_pos",
             self.id,
@@ -2103,17 +2127,18 @@ local function onDuelCard(arg)
         )
 
         if loser then -- 失败者座位
-            loser:chipin(pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD"), 0)
+            loser:chipin(pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD"), 0) -- 失败者弃牌
             if not nofold then
                 self:sendPosInfoToAll(loser)
             end
             self.m_duel_loser_pos = 0
         end
-        self.m_dueled_pos, self.m_dueler_pos = 0, 0
-        if self:checkFinish() then
+        self.m_dueled_pos = 0 -- 被比牌者座位号
+        self.m_dueler_pos = 0 -- 发起比牌者座位号
+        if self:checkFinish() then -- 如果游戏结束
             return true
         else
-            local next = self:getNextActionPosition(dueler) -- 下一个操作者座位
+            local next = self:getNextActionPosition(dueler) -- 下一个操作者座位(比牌者的下一个玩家)
             self:betting(next)
         end
     end
@@ -2123,10 +2148,14 @@ end
 
 -- 玩家操作
 -- 参数 uid: 操作者uid
--- 参数 type: 操作方式
+-- 参数 type: 操作方式(弃牌、看牌、交前注、跟注、加注、发起比牌、同意比牌、拒绝比牌)
 -- 参数 money: 操作所需金额
 function Room:chipin(uid, type, money)
     local seat = self:getSeatByUid(uid)
+    if not seat then
+        log.error("idx(%s,%s,%s) chipin(),seat==nil", self.id, self.mid, self.logid)
+        return false
+    end
     if (type ~= pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_CHECK") and
         type ~= pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_PRECHIPS"))
     then
@@ -2137,7 +2166,7 @@ function Room:chipin(uid, type, money)
 
     local is_enough_money = ((seat.chips > seat.roundmoney) and (seat.chips - seat.roundmoney) or 0) >= money
     log.info(
-        "idx(%s,%s,%s) chipin pos:%s uid:%s type:%s money:%s,%s",
+        "idx(%s,%s,%s) chipin() pos:%s uid:%s type:%s money:%s,%s",
         self.id,
         self.mid,
         tostring(self.logid),
@@ -2153,7 +2182,7 @@ function Room:chipin(uid, type, money)
     -- 弃牌
     local function fold_func(seat, type, money)
         if self.state == pb.enum_id("network.cmd.PBTeemPattiTableState", "PBTeemPattiTableState_Dueling") then -- 如果是比牌状态
-            if seat.sid ~= self.m_dueled_pos then
+            if seat.sid ~= self.m_dueled_pos then -- 如果不是被比牌者座位
                 log.error(
                     "idx(%s,%s,%s) fold_func() sid=%s,m_dueled_pos=%s",
                     self.id,
@@ -2376,6 +2405,30 @@ function Room:chipin(uid, type, money)
                     end
                 end
 
+                -- 判断两者牌型 DQW
+                if dueled.handtype >=
+                    pb.enum_id("network.cmd.PBTeemPattiCardWinType", "PBTeemPattiCardWinType_STRAIGHTFLUSH") then
+                    self.firstCardsType = dueled.handtype
+                    self.firstUid = dueled.uid
+                end
+                if dueler.handtype >=
+                    pb.enum_id("network.cmd.PBTeemPattiCardWinType", "PBTeemPattiCardWinType_STRAIGHTFLUSH") then
+                    if self.firstCardsType then
+                        if dueler.handtype > self.firstCardsType then
+                            self.secondCardsType = self.firstCardsType
+                            self.secondUid = self.firstUid
+                            self.firstCardsType = dueler.handtype
+                            self.firstUid = dueler.uid
+                        else
+                            self.secondCardsType = dueler.handtype
+                            self.secondUid = dueler.uid
+                        end
+                    else
+                        self.firstCardsType = dueler.handtype
+                        self.firstUid = dueler.uid
+                    end
+                end
+
                 self:sendPosInfoToAll(seat)
                 log.debug(
                     "idx(%s,%s,%s) duel_yes_func() 2 m_dueler_pos=%s,m_dueled_pos=%s",
@@ -2417,6 +2470,8 @@ function Room:chipin(uid, type, money)
     end
 
     -- 发起比牌
+    -- 参数 seat: 发起比牌者座位
+    -- 参数 type: 比牌操作
     local function duel_func(seat, type, money)
         if seat.chiptype == pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_BETING_LACK") then
             self:sendPosInfoToAll(
@@ -2429,7 +2484,7 @@ function Room:chipin(uid, type, money)
 
         local playingnum, checknum = self:getPlayingAndCheckNum() -- 获取还在玩的玩家数 及 看了牌的玩家数
         if is_enough_money then
-            local next = self:getNextDuelPosition(seat) -- 获取被比牌者
+            local next = self:getNextDuelPosition(seat) -- 获取被比牌者座位
             if next then
                 self.m_dueler_pos = seat.sid -- 发起比牌者座位号
                 self.m_dueled_pos = next.sid -- 被比牌者座位号
@@ -2454,8 +2509,8 @@ function Room:chipin(uid, type, money)
                         0,
                         true
                     )
-                elseif checknum >= 2 and seat.ischeck then
-                    seat:chipin(type, money)
+                elseif checknum >= 2 and seat.ischeck then -- 如果超过2个看过牌的玩家 且 发起比牌者看过牌
+                    seat:chipin(type, money) -- 发起比牌者操作(发起比牌)
                     self:sendPosInfoToAll(seat)
                     if not self:checkFinish() then
                         log.debug(
@@ -2468,6 +2523,9 @@ function Room:chipin(uid, type, money)
                         )
                         self:betting(next)
                     end
+                else
+                    log.error("idx(%s,%s,%s),duel_func(),checknum=%s,uid=%s,ischeck=%s", self.id, self.mid,
+                        tostring(self.logid), tostring(checknum), tostring(seat.uid), tostring(seat.ischeck))
                 end
             end
         end
@@ -2642,7 +2700,7 @@ end
 local function onStartHandCards(self)
     local function doRun()
         log.debug(
-            "idx(%s,%s,%s) onStartHandCards button_pos:%s",
+            "idx(%s,%s,%s) onStartHandCards() button_pos:%s",
             self.id,
             self.mid,
             tostring(self.logid),
@@ -2673,8 +2731,9 @@ local function onPrechipsOver(self)
     g.call(doRun)
 end
 
+-- 交前注
 function Room:dealPreChips()
-    log.debug("idx(%s,%s,%s) dealPreChips ante:%s", self.id, self.mid, tostring(self.logid), self.conf.ante)
+    log.debug("idx(%s,%s,%s) dealPreChips() ante:%s", self.id, self.mid, tostring(self.logid), self.conf.ante)
     self.state = pb.enum_id("network.cmd.PBTeemPattiTableState", "PBTeemPattiTableState_PreChips")
     if self.conf.ante > 0 then
         for i = self.buttonpos + 1, self.buttonpos + #self.seats do
@@ -2754,9 +2813,9 @@ function Room:dealHandCards()
                 if user.playHand == 0 then -- 如果该玩家还未玩tp游戏
                     self.isControl = true
                     winnerUID = self.realPlayerUID
-                elseif user.playHand <= 5 then
+                elseif user.playHand <= 10 then
                     self.isControl = true
-                    if rand.rand_between(1, 100) < 60 then -- 60%的概率玩家赢,40%的概率随机发牌
+                    if rand.rand_between(1, 100) < 30 then -- 30%的概率玩家赢,70%的概率随机发牌
                         winnerUID = self.realPlayerUID
                         log.debug("playHand=%s,winnerUID=%s", user.playHand, winnerUID)
                     else
@@ -2770,20 +2829,20 @@ function Room:dealHandCards()
                     TeenPattiSpecialTime = TeenPattiSpecialTime or {}
                     TeenPattiSpecialTime[self.realPlayerUID] = TeenPattiSpecialTime[self.realPlayerUID] or 0 --上次发特殊牌时刻
                     local currentTime = global.ctsec() -- 当前时刻(秒)
-                    if currentTime - (TeenPattiSpecialTime[self.realPlayerUID] or 0) > 600 and seat then
-                        log.debug("ante=%s, money=%s,chips=%s", tostring(self.conf.ante), money, seat.chips)
+                    if currentTime - (TeenPattiSpecialTime[self.realPlayerUID] or 0) > 1200 and seat then
+                        log.debug("uid=%s,ante=%s, money=%s,chips=%s", self.realPlayerUID, tostring(self.conf.ante), money, seat.chips)
                         --  剩余筹码小于340*ante
                         if seat and self.conf and self.conf.ante and seat.chips + money < 340 * self.conf.ante then
                             log.debug("uid=%s, ante=%s, chips=%s", self.realPlayerUID, self.conf.ante, seat.chips)
-                            if user.playHand <= 10 then
+                            if 15 <= user.playHand and user.playHand <= 30 then -- 特殊牌局 [20,30]
                                 if rand.rand_between(1, 100) < 50 then -- 50%的概率触发特殊牌局
                                     --user.lastSendSpecialCardsTime = currentTime --
                                     TeenPattiSpecialTime[self.realPlayerUID] = currentTime
                                     winnerUID = self.realPlayerUID
                                     sendSpecialCards = true -- 准备发特殊牌
                                 end
-                            else -- 玩牌局数 > 10
-                                if rand.rand_between(1, 100) < 20 then -- 20%的概率触发特殊牌局
+                            elseif user.playHand > 30 then -- 玩牌局数 > 30
+                                if rand.rand_between(1, 100) < 10 then -- 10%的概率触发特殊牌局
                                     --user.lastSendSpecialCardsTime = currentTime --
                                     TeenPattiSpecialTime[self.realPlayerUID] = currentTime
                                     winnerUID = self.realPlayerUID
@@ -2793,12 +2852,11 @@ function Room:dealHandCards()
 
                             -- 移除未使用的玩家信息
                             for i, v in pairs(TeenPattiSpecialTime) do
-                                if i and v and currentTime - v > 600 then
+                                if i and v and currentTime - v > 1200 then
                                     TeenPattiSpecialTime[i] = nil
                                     log.debug("DQW TeenPattiSpecialTime[%s] = nil", i)
                                 end
                             end
-
                         else
                             log.debug(
                                 "DQW realPlayerUID=%s, user.chargeMoney=%s, ante=%s, chips=%s",
@@ -2838,7 +2896,7 @@ function Room:dealHandCards()
         else
             self:dealSpecialCards2(seatcards, winnerUID, nil) -- 发特殊牌,控制玩家输赢
             self:writeResultToRedis(winnerUID, nil)
-        end        
+        end
     elseif isRandDealCards then
         self:dealCardsCommon(nil, nil, 0) -- 随机发牌
     elseif winnerUID > 0 or loserUID > 0 then -- 单个人控制 且 有真实玩家下注了
@@ -2872,9 +2930,10 @@ function Room:dealHandCards()
                     end
                 end
                 log.info(
-                    "idx(%s,%s) start result request %s winnerUID=%s,loserUID=%s",
+                    "idx(%s,%s,%s) start result request %s winnerUID=%s,loserUID=%s",
                     self.id,
                     self.mid,
+                    self.logid,
                     cjson.encode(msg),
                     winnerUID,
                     loserUID
@@ -2922,7 +2981,7 @@ function Room:dealHandCards()
                     end
                 end
                 log.info(
-                    "idx(%s,%s,%s) ok %s winlist loselist robotlist %s,%s,%s",
+                    "idx(%s,%s,%s) ok=%s,winlist=%s,loselist=%s,robotlist=%s",
                     self.id,
                     self.mid,
                     tostring(self.logid),
@@ -2952,7 +3011,7 @@ function Room:dealHandCards()
     elseif (self.conf.global_profit_switch and hasplayer) then -- 全局控制 且 有真实玩家参与游戏
         --[[
             15%控制输：随机一个玩家输，随机一个AI赢；若无AI，随机一个其他玩家赢
-            12%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
+            7%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
             剩余概率不控制
         ]]
         local randV = rand.rand_between(1, 10000)
@@ -2967,10 +3026,10 @@ function Room:dealHandCards()
             else
                 log.debug("idx(%s,%s,%s) global control 2", self.id, self.mid, self.logid)
                 self:dealCardsCommon(nil, loserSeat, 0)
-            end            
-       elseif randV <= 2200 then
+            end
+        elseif randV <= 2200 then
             self.isControl = true
-            -- 12%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
+            -- 7%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
             local winnerSeat = realPlayerSeatList[rand.rand_between(1, #realPlayerSeatList)]
             self:writeResultToRedis(winnerSeat.uid, nil)
             if #robotSeatList > 0 then
@@ -2980,9 +3039,8 @@ function Room:dealHandCards()
                 log.debug("idx(%s,%s,%s) global control 4", self.id, self.mid, self.logid)
                 self:dealCardsCommon(winnerSeat, nil, 0)
             end
-            
         else
-            -- 73%不控制输赢
+            -- 78%不控制输赢
             log.debug("idx(%s,%s,%s) global control 5", self.id, self.mid, self.logid)
             self:writeResultToRedis(nil, nil)
             self:dealCardsCommon(nil, nil, 0)
@@ -3090,11 +3148,17 @@ local function onBettingTimer(self)
             )
             timer.cancel(self.timer, TimerID.TimerID_Betting[1]) -- 关闭定时器
 
+            -- 判断是否是机器人超时
+            if user and Utils:isRobot(user.api) then
+                log.error("idx(%s,%s,%s) onBettingTimer over time bettingpos:%s robot uid:%s", self.id, self.mid,
+                    self.logid, self.current_betting_pos, current_betting_seat.uid or 0)
+            end
             if user and self.m_dueled_pos ~= self.current_betting_pos then -- 如果是被比牌者
-                user.is_bet_timeout = true
-                user.bet_timeout_count = user.bet_timeout_count or 0
+                user.is_bet_timeout = true -- 操作超时
+                user.bet_timeout_count = user.bet_timeout_count or 0 -- 操作超时次数
                 user.bet_timeout_count = user.bet_timeout_count + 1
             end
+
             self:userchipin(
                 current_betting_seat.uid,
                 self.m_dueled_pos == self.current_betting_pos and
@@ -3111,6 +3175,7 @@ end
 -- 轮到指定座位操作(下注、加注、弃牌等)
 function Room:betting(seat)
     if not seat then
+        log.error("idx(%s,%s,%s) betting(),seat==nil", self.id, self.mid, self.logid)
         return false
     end
 
@@ -3134,8 +3199,7 @@ function Room:betting(seat)
     -- 预操作
     local preop = seat:getPreOP() --
     if preop == pb.enum_id("network.cmd.PBTexasPreOPType", "PBTexasPreOPType_CheckOrFold") then -- 过牌或弃牌
-        -- 玩家弃牌
-        self:userchipin(seat.uid, pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD"), 0)
+        self:userchipin(seat.uid, pb.enum_id("network.cmd.PBTeemPattiChipinType", "PBTeemPattiChipinType_FOLD"), 0) -- 玩家弃牌
         seat:setPreOP(pb.enum_id("network.cmd.PBTexasPreOPType", "PBTexasPreOPType_None"))
     else
         notifyBetting() -- 通知所有玩家轮到某人下注
@@ -3235,7 +3299,7 @@ function Room:finish()
     end
 
     -- 获取或者玩家座位列表
-    local winners = {}
+    local winners = {} -- 所有赢家座位
     local nonfolds = self:getNonFoldSeats()
     local isoverpot = self:isOverPotLimit()
     self.isOverPot = isoverpot
@@ -3255,6 +3319,25 @@ function Room:finish()
             end
         end
     end
+    if isoverpot and #nonfolds > 1 then -- 如果赢家不止一个
+        if winners[1] and
+            winners[1].handtype >=
+            pb.enum_id("network.cmd.PBTeemPattiCardWinType", "PBTeemPattiCardWinType_STRAIGHTFLUSH") then
+            self.firstCardsType = winners[1].handtype
+            self.firstUid = winners[1] and winners[1].uid or 0
+            for i = 1, #nonfolds do
+                if self.firstUid ~= nonfolds[i].uid and
+                    nonfolds[i].handtype >=
+                    pb.enum_id("network.cmd.PBTeemPattiCardWinType", "PBTeemPattiCardWinType_STRAIGHTFLUSH") then
+                    self.secondCardsType = nonfolds[i].handtype
+                    self.secondUid = nonfolds[i].uid or 0
+                    break
+                end
+            end
+        end
+    end
+
+
     local srcpot = self:getOnePot()
     local pot, potrate = self:potRake(srcpot)
 
@@ -3306,22 +3389,49 @@ function Room:finish()
             )
 
             -- JackPot中奖
-            if JACKPOT_CONF[self.conf.jpid] and #winners == 1 and
+            if JACKPOT_CONF[self.conf.jpid] and -- #winners == 1 and
                 v.handtype >=
-                pb.enum_id("network.cmd.PBTeemPattiCardWinType", "PBTeemPattiCardWinType_STRAIGHTFLUSH")
+                pb.enum_id("network.cmd.PBTeemPattiCardWinType", "PBTeemPattiCardWinType_STRAIGHTFLUSH") -- 同花順
             then
                 if not self.sdata.jp.uid or self.sdata.winpokertype < v.handtype then -- 2021-10-29
-                    self.sdata.jp.uid = v.uid
-                    self.sdata.jp.username = self.users[v.uid] and self.users[v.uid].username or
-                        (self.reviewlogitems[v.uid] and self.reviewlogitems[v.uid].player.username or "")
-                    local jp_percent_size =
-                    pb.enum_id("network.cmd.PBTeemPattiCardWinType", "PBTeemPattiCardWinType_STRAIGHTFLUSH")
-                    self.sdata.jp.delta_sub = JACKPOT_CONF[self.conf.jpid].percent[(v.handtype % jp_percent_size) + 1]
+                    -- teenpatti jackpot中奖逻辑调整：
+                    -- shou时（非sideshow）
+                    -- 同时出现两个3条（对应奖励为jp配置中royalflush，获胜玩家获得奖励）
+                    -- 同时出现3条和同花顺（对应奖励为jp配置中straightflush，获胜玩家获得奖励）
+                    -- 同时出现2个同花顺（对应奖励为jp配置中fourkind，获胜玩家获得奖励）
+                    if self.secondCardsType then
+                        self.sdata.jp.uid = v.uid
+                        self.sdata.jp.username = self.users[v.uid] and self.users[v.uid].username or
+                            (self.reviewlogitems[v.uid] and self.reviewlogitems[v.uid].player.username or "")
+
+                        if self.secondCardsType >
+                            pb.enum_id("network.cmd.PBTeemPattiCardWinType", "PBTeemPattiCardWinType_STRAIGHTFLUSH") then
+                            self.sdata.jp.delta_sub = JACKPOT_CONF[self.conf.jpid].percent[3]
+                            log.debug("dqw 3 self.sdata.jp.delta_sub=%s, jp_uid=%s", self.sdata.jp.delta_sub,
+                                self.sdata.jp.uid)
+                        elseif self.firstCardsType >
+                            pb.enum_id("network.cmd.PBTeemPattiCardWinType", "PBTeemPattiCardWinType_STRAIGHTFLUSH") then
+                            -- 同时出现3条和同花顺
+                            self.sdata.jp.delta_sub = JACKPOT_CONF[self.conf.jpid].percent[2]
+                            log.debug("dqw 2 self.sdata.jp.delta_sub=%s, jp_uid=%s", self.sdata.jp.delta_sub,
+                                self.sdata.jp.uid)
+                        else
+                            -- 同时出现2个同花顺
+                            self.sdata.jp.delta_sub = JACKPOT_CONF[self.conf.jpid].percent[1]
+                            log.debug("dqw 1 self.sdata.jp.delta_sub=%s, jp_uid=%s", self.sdata.jp.delta_sub,
+                                self.sdata.jp.uid)
+                        end
+                    end
                     self.sdata.winpokertype = v.handtype
+                    self.sameStraightFlushNum = #winners -- 相同的同花顺个数
                 end
             end
         else -- 亏损玩家
             v.chips = (v.chips > v.roundmoney) and (v.chips - v.roundmoney) or 0
+        end
+        local user = self.users[v.uid]
+        if user and not Utils:isRobot(user.api) then
+            Utils:updateChipsNum(global.sid(), user.uid, v.chips)
         end
     end
 
@@ -3467,6 +3577,10 @@ function Room:finish()
                 }
             )
             self.reviewlogitems[v.uid] = nil
+
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), user.uid, v.chips)
+            end
         end
     end
     log.debug(
@@ -3550,6 +3664,9 @@ function Room:finish()
                     log.debug("self.sdata.users[seat.uid].extrainfo uid=%s,totalmoney=%s", seat.uid,
                         extrainfo["totalmoney"])
                     self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
+                end
+                if not Utils:isRobot(user.api) then
+                    Utils:updateChipsNum(global.sid(), user.uid, seat.chips)
                 end
             end
         end
@@ -3902,6 +4019,9 @@ function Room:userBuyin(uid, linkid, rev, system)
             user.totalbuyin = seat.totalbuyin
 
             seat:buyinToChips()
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), uid, seat.chips)
+            end
 
             pb.encode(
                 "network.cmd.PBTexasPlayerBuyin",
@@ -4388,10 +4508,25 @@ function Room:userJackPotResp(uid, rev)
             )
         }
     end
+
+    local otherUid = 0
+    if self.sameStraightFlushNum > 1 then
+        if self.firstUid == uid then
+            value = value / 2
+            otherUid = self.secondUid
+        elseif self.secondUid == uid then
+            value = value / 2
+            otherUid = self.firstUid
+        end
+    end
+
     if value ~= 0 then -- 2021-9-17
         local reviewlog = self.reviewlogs:back()
         for k, v in ipairs(reviewlog.items) do
             if v.player and v.player.username == rev.nickname then
+                v.win = v.win + value
+            end
+            if otherUid > 0 and otherUid == v.player.uid then
                 v.win = v.win + value
             end
         end
@@ -4417,9 +4552,12 @@ function Room:userJackPotResp(uid, rev)
         value,
         jackpot
     )
+
     seat.chips = seat.chips + value
     -- self:sendPosInfoToAll(seat)
-
+    if not Utils:isRobot(user.api) then
+        Utils:updateChipsNum(global.sid(), uid, seat.chips)
+    end
     if self.sdata.jp and self.sdata.jp.uid and self.sdata.jp.uid == uid and self.jackpot_and_showcard_flags then
         self.jackpot_and_showcard_flags = false
         pb.encode(
@@ -4451,6 +4589,36 @@ function Room:userJackPotResp(uid, rev)
             value,
             seat.handtype
         )
+    end
+
+    if otherUid > 0 then
+        local otherSeat = self:getSeatByUid(otherUid)
+        if otherSeat then
+            otherSeat.chips = otherSeat.chips + value
+            if self.sdata.jp and self.sdata.jp.uid and self.sdata.jp.uid == uid then
+                pb.encode(
+                    "network.cmd.PBGameJackpotAnimation_N",
+                    {
+                        data = {
+                            sid = otherSeat.sid,
+                            uid = otherUid,
+                            delta = value,
+                            wintype = otherSeat.handtype
+                        }
+                    },
+                    function(pointer, length)
+                        self:sendCmdToPlayingUsers(
+                            pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                            pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_GameNotifyJackPotAnimation"),
+                            pointer,
+                            length
+                        )
+                    end
+                )
+
+                log.info("dqw otherUid=%s, uid=%s", otherUid, uid)
+            end
+        end
     end
 
     return true
@@ -5492,7 +5660,7 @@ function Room:dealCardsCommon(winnerSeat, loserSeat, bigCardsNum)
     local randValue = 1
     local bigCardsList = {}
     local largestCardsIndex = 0 -- 最大牌索引
-    local needNotifyRobot = false
+    local needNotifyRobot = true
 
     if self.isControl then
         needNotifyRobot = true
@@ -5512,6 +5680,7 @@ function Room:dealCardsCommon(winnerSeat, loserSeat, bigCardsNum)
                 index = index + 1
                 seat.handcards[3] = leftCards[index]
                 index = index + 1
+
                 seat.handtype = self.poker:getPokerTypebyCards(g.copy(seat.handcards))
             end
         end
@@ -5550,10 +5719,10 @@ function Room:dealCardsCommon(winnerSeat, loserSeat, bigCardsNum)
 
         for i = 1, bigCardsNum do
             local cards
-            if isRealPlayerLose then --真实玩家输 [对K,QKA]
-                cards = self:dealCardsRange(leftCards, { 0x10D, 0x20D, 0x102 }, { 0x10C, 0x20D, 0x30E }) -- 随机一手大牌[对K,顺子QKA]范围内的牌)
-            else
-                cards = self:dealCardsRange(leftCards, { 0x102, 0x108, 0x208 }, { 0x10C, 0x20D, 0x30E }) -- 随机一手大牌(对8及其以上的牌)
+            if isRealPlayerLose then --真实玩家输 [对J,同花顺)
+                cards = self:dealCardsRange(leftCards, { 0x10B, 0x20B, 0x102 }, { 0x10C, 0x20D, 0x30E }) -- 随机一手大牌[对J,顺子QKA]范围内的牌)
+            else -- 真实玩家赢   [对8,顺子8910)
+                cards = self:dealCardsRange(leftCards, { 0x102, 0x208, 0x308 }, { 0x108, 0x109, 0x20A }) -- 随机一手大牌(对8及其以上的牌)
             end
             table.insert(bigCardsList, cards)
             leftCards = self:removeCards(leftCards, cards) --移除已发的牌
@@ -5567,7 +5736,12 @@ function Room:dealCardsCommon(winnerSeat, loserSeat, bigCardsNum)
             end
         end
         for i = bigCardsNum + 1, playerNum do
-            local cards = self:dealCardsRange(leftCards, { 0x102, 0x203, 0x105 }, { 0x10E, 0x207, 0x307 }) -- 随机一手小牌(对8以下的牌)
+            local cards
+            if isRealPlayerLose then
+                cards = self:dealCardsRange(leftCards, { 0x102, 0x203, 0x105 }, { 0x10B, 0x20B, 0x102 }) -- 随机一手小牌(对J以下的牌)
+            else
+                cards = self:dealCardsRange(leftCards, { 0x102, 0x203, 0x105 }, { 0x102, 0x208, 0x308 }) -- 随机一手小牌(对8以下的牌)
+            end
             table.insert(bigCardsList, cards)
             leftCards = self:removeCards(leftCards, cards) --移除已发的牌
         end
@@ -5660,7 +5834,8 @@ function Room:dealCardsCommon(winnerSeat, loserSeat, bigCardsNum)
             end
         end
     end
-    log.debug("idx(%s,%s,%s) dealCardsCommon(),seatcards=%s,isControl=%s", self.id, self.mid, self.logid, cjson.encode(seatcards), tostring(self.isControl))
+    log.debug("idx(%s,%s,%s) dealCardsCommon(),seatcards=%s,isControl=%s", self.id, self.mid, self.logid,
+        cjson.encode(seatcards), tostring(self.isControl))
 end
 
 -- 将各玩家输赢控制结果写入redis中
@@ -5724,6 +5899,8 @@ message Game2UserProfitResultReqResp {
 
     Utils:queryProfitResult(msg)
 end
+
+
 
 --[[
 --------------------------

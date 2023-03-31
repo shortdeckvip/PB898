@@ -24,6 +24,23 @@ local EnumAndarBaharType = {
     EnumAndarBaharType_Bahar = 2
 }
 
+local EnumAndarBaharType_IB = {
+    --胜负
+    EnumAndarBaharType_Andar = 1,
+    EnumAndarBaharType_Bahar = 2,
+
+    EnumAndarBaharType_1_5   = 3,
+    EnumAndarBaharType_6_10  = 4,
+    EnumAndarBaharType_11_15 = 5,
+    EnumAndarBaharType_16_25 = 6,
+    EnumAndarBaharType_26_30 = 7,
+    EnumAndarBaharType_31_35 = 8,
+    EnumAndarBaharType_36_40 = 9,
+    EnumAndarBaharType_41_52 = 10,
+}
+
+
+
 -- 在各下注区的下注金额(默认为0)
 local DEFAULT_BET_TABLE = {
     --胜负
@@ -31,10 +48,41 @@ local DEFAULT_BET_TABLE = {
     [EnumAndarBaharType.EnumAndarBaharType_Bahar] = 0
 }
 
+local DEFAULT_BET_TABLE_IB = {
+    --胜负
+    [EnumAndarBaharType_IB.EnumAndarBaharType_Andar] = 0,
+    [EnumAndarBaharType_IB.EnumAndarBaharType_Bahar] = 0,
+
+    [EnumAndarBaharType_IB.EnumAndarBaharType_1_5] = 0,
+    [EnumAndarBaharType_IB.EnumAndarBaharType_6_10] = 0,
+    [EnumAndarBaharType_IB.EnumAndarBaharType_11_15] = 0,
+    [EnumAndarBaharType_IB.EnumAndarBaharType_16_25] = 0,
+    [EnumAndarBaharType_IB.EnumAndarBaharType_26_30] = 0,
+    [EnumAndarBaharType_IB.EnumAndarBaharType_31_35] = 0,
+    [EnumAndarBaharType_IB.EnumAndarBaharType_36_40] = 0,
+    [EnumAndarBaharType_IB.EnumAndarBaharType_41_52] = 0,
+}
+
+
+
 -- 下注区域(下注类型)
 local DEFAULT_BET_TYPE = {
     EnumAndarBaharType.EnumAndarBaharType_Andar,
     EnumAndarBaharType.EnumAndarBaharType_Bahar
+}
+
+local DEFAULT_BET_TYPE_IB = {
+    EnumAndarBaharType_IB.EnumAndarBaharType_Andar,
+    EnumAndarBaharType_IB.EnumAndarBaharType_Bahar,
+
+    EnumAndarBaharType_IB.EnumAndarBaharType_1_5,
+    EnumAndarBaharType_IB.EnumAndarBaharType_6_10,
+    EnumAndarBaharType_IB.EnumAndarBaharType_11_15,
+    EnumAndarBaharType_IB.EnumAndarBaharType_16_25,
+    EnumAndarBaharType_IB.EnumAndarBaharType_26_30,
+    EnumAndarBaharType_IB.EnumAndarBaharType_31_35,
+    EnumAndarBaharType_IB.EnumAndarBaharType_36_40,
+    EnumAndarBaharType_IB.EnumAndarBaharType_41_52,
 }
 
 --
@@ -50,6 +98,61 @@ local DEFAULT_BETST_TABLE = {
         hitcount = 0, -- 命中次数
         lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
     }
+}
+
+local DEFAULT_BETST_TABLE_IB = {
+    --胜负
+    [EnumAndarBaharType_IB.EnumAndarBaharType_Andar] = {
+        type = EnumAndarBaharType_IB.EnumAndarBaharType_Andar, -- Andar方
+        hitcount = 0, -- 命中次数
+        lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
+    },
+    [EnumAndarBaharType_IB.EnumAndarBaharType_Bahar] = {
+        type = EnumAndarBaharType_IB.EnumAndarBaharType_Bahar,
+        hitcount = 0, -- 命中次数
+        lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
+    },
+
+    [EnumAndarBaharType_IB.EnumAndarBaharType_1_5] = {
+        type = EnumAndarBaharType_IB.EnumAndarBaharType_1_5,
+        hitcount = 0, -- 命中次数
+        lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
+    },
+    [EnumAndarBaharType_IB.EnumAndarBaharType_6_10] = {
+        type = EnumAndarBaharType_IB.EnumAndarBaharType_6_10,
+        hitcount = 0, -- 命中次数
+        lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
+    },
+    [EnumAndarBaharType_IB.EnumAndarBaharType_11_15] = {
+        type = EnumAndarBaharType_IB.EnumAndarBaharType_11_15,
+        hitcount = 0, -- 命中次数
+        lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
+    },
+    [EnumAndarBaharType_IB.EnumAndarBaharType_16_25] = {
+        type = EnumAndarBaharType_IB.EnumAndarBaharType_16_25,
+        hitcount = 0, -- 命中次数
+        lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
+    },
+    [EnumAndarBaharType_IB.EnumAndarBaharType_26_30] = {
+        type = EnumAndarBaharType_IB.EnumAndarBaharType_26_30,
+        hitcount = 0, -- 命中次数
+        lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
+    },
+    [EnumAndarBaharType_IB.EnumAndarBaharType_31_35] = {
+        type = EnumAndarBaharType_IB.EnumAndarBaharType_31_35,
+        hitcount = 0, -- 命中次数
+        lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
+    },
+    [EnumAndarBaharType_IB.EnumAndarBaharType_36_40] = {
+        type = EnumAndarBaharType_IB.EnumAndarBaharType_36_40,
+        hitcount = 0, -- 命中次数
+        lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
+    },
+    [EnumAndarBaharType_IB.EnumAndarBaharType_41_52] = {
+        type = EnumAndarBaharType_IB.EnumAndarBaharType_41_52,
+        hitcount = 0, -- 命中次数
+        lasthit = 0 -- 距离上次命中的局数(即连续多少局未赢)
+    },
 }
 
 local TimerID = {
@@ -121,9 +224,15 @@ function Room:init()
     self.stateBeginTime = global.ctms() -- 当前状态开始时刻(毫秒)
 
     self.roundid = (self.id << 32) | global.ctsec() -- 局号(唯一!)  房间ID右移16位，再左移32位，再加上时间
-    self.profits = g.copy(DEFAULT_BET_TABLE) -- 当局所有玩家在每个下注区赢亏累计值
-    self.bets = g.copy(DEFAULT_BET_TABLE) -- 当局所有玩家(包括机器人)在每个下注区下注累计值
-    self.userbets = g.copy(DEFAULT_BET_TABLE) -- 当局所有真实玩家在每个下注区下注累计值
+    if self:conf() and self:conf().isib then
+        self.profits = g.copy(DEFAULT_BET_TABLE_IB) -- 当局所有玩家在每个下注区赢亏累计值
+        self.bets = g.copy(DEFAULT_BET_TABLE_IB) -- 当局所有玩家(包括机器人)在每个下注区下注累计值
+        self.userbets = g.copy(DEFAULT_BET_TABLE_IB) -- 当局所有真实玩家在每个下注区下注累计值
+    else
+        self.profits = g.copy(DEFAULT_BET_TABLE) -- 当局所有玩家在每个下注区赢亏累计值
+        self.bets = g.copy(DEFAULT_BET_TABLE) -- 当局所有玩家(包括机器人)在每个下注区下注累计值
+        self.userbets = g.copy(DEFAULT_BET_TABLE) -- 当局所有真实玩家在每个下注区下注累计值
+    end
     self.betst = {} -- 下注统计
     self.betque = {} -- 下注数据队列, 用于重放给其它客户端, 元素类型为 PBAndarBaharBetData
     self.logmgr = LogMgr:new(
@@ -156,7 +265,10 @@ function Room:init()
     self.createRobotTimeInterval = 4 -- 定时器时间间隔(秒)
     self.lastRemoveRobotTime = 0 -- 上次移除机器人时刻(秒)
     self.needRobotNum = 30 -- 默认需要创建30个机器人
-    self.lastNeedRobotTime = 0  -- 上次需要机器人时刻
+    self.lastNeedRobotTime = 0 -- 上次需要机器人时刻
+    self.cards = {} -- 当前这一局的牌数据
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
+     
 end
 
 -- 重置这一局数据
@@ -170,9 +282,17 @@ function Room:roundReset()
     self.finish_time = global.ctms()
     self.round_start_time = 0
 
-    self.profits = g.copy(DEFAULT_BET_TABLE) -- 当局所有玩家在每个下注区赢亏累计值
-    self.bets = g.copy(DEFAULT_BET_TABLE) -- 当局所有玩家(包括机器人)在每个下注区下注累计值
-    self.userbets = g.copy(DEFAULT_BET_TABLE) -- 当局所有玩家(不包括机器人)在每个下注区下注累计值
+
+    if self:conf().isib then
+        self.profits = g.copy(DEFAULT_BET_TABLE_IB) -- 当局所有玩家在每个下注区赢亏累计值
+        self.bets = g.copy(DEFAULT_BET_TABLE_IB) -- 当局所有玩家(包括机器人)在每个下注区下注累计值
+        self.userbets = g.copy(DEFAULT_BET_TABLE_IB) -- 当局所有玩家(不包括机器人)在每个下注区下注累计值
+    else
+        self.profits = g.copy(DEFAULT_BET_TABLE) -- 当局所有玩家在每个下注区赢亏累计值
+        self.bets = g.copy(DEFAULT_BET_TABLE) -- 当局所有玩家(包括机器人)在每个下注区下注累计值
+        self.userbets = g.copy(DEFAULT_BET_TABLE) -- 当局所有玩家(不包括机器人)在每个下注区下注累计值
+    end
+
     self.betque = {} -- 下注数据队列, 用于重放给其它客户端
     self.sdata = { roomtype = (self:conf() and self:conf().roomtype) } -- 清空统计数据
     -- self.sdata.cards[1].cards = { } 中存放发出的牌数据
@@ -189,7 +309,11 @@ function Room:roundReset()
 
     -- 用户数据
     for k, v in pairs(self.users) do -- 遍历该房间所有玩家
-        v.bets = g.copy(DEFAULT_BET_TABLE) --在各下注区的下注额为0
+        if self:conf().isib then
+            v.bets = g.copy(DEFAULT_BET_TABLE_IB) --在各下注区的下注额为0
+        else
+            v.bets = g.copy(DEFAULT_BET_TABLE) --在各下注区的下注额为0
+        end
         v.totalbet = 0 -- 本局总下注额
         v.profit = 0 -- 本局总收益
         v.totalprofit = 0
@@ -316,14 +440,14 @@ function Room:updateSeatsInVTable(vtable)
             "network.cmd.PBGameUpdateSeats_N",
             t,
             function(pointer, length)
-            self:sendCmdToPlayingUsers(
-                pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-                pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_GameUpdateSeats"),
-                pointer,
-                length
-            )
-            log.info("idx(%s,%s) PBGameUpdateSeats_N : %s", self.id, self.mid, cjson.encode(t))
-        end
+                self:sendCmdToPlayingUsers(
+                    pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                    pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_GameUpdateSeats"),
+                    pointer,
+                    length
+                )
+                log.info("idx(%s,%s) PBGameUpdateSeats_N : %s", self.id, self.mid, cjson.encode(t))
+            end
         )
     end
 end
@@ -433,7 +557,7 @@ function Room:userLeave(uid, linkid)
                 pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2AS"),
                 pb.enum_id("network.inter.Game2ASSubCmd", "Game2ASSubCmd_SysAssignRoom"),
                 synto
-            )
+            )            
         end
         log.info("idx(%s,%s) net.shared 1", self.id, self.mid)
         return
@@ -532,91 +656,41 @@ function Room:userInto(uid, linkid, rev)
     user.mobile = rev.mobile
     user.roomid = self.id
     user.matchid = self.mid
-
+    user.playerinfo = user.playerinfo or { extra = {} }
+    user.totalbet = user.totalbet or 0
+    user.profit = user.profit or 0
+    user.totalprofit = user.totalprofit or 0
+    user.totalpureprofit = user.totalpureprofit or 0
+    user.totalfee = user.totalfee or 0
+    if self:conf().isib then
+        user.bets = user.bets or g.copy(DEFAULT_BET_TABLE_IB)
+    else
+        user.bets = user.bets or g.copy(DEFAULT_BET_TABLE)
+    end
     user.mutex = coroutine.create(-- 创建一个新协程。 返回这个新协程，它是一个类型为 `"thread"` 的对象。
         function(user)
-        mutex.request(
-            pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Mutex"),
-            pb.enum_id("network.inter.Game2MutexSubCmd", "Game2MutexSubCmd_MutexCheck"),
-            pb.encode(
-                "network.cmd.PBMutexCheck",
-                {
-                uid = uid,
-                srvid = global.sid(),
-                matchid = self.mid,
-                roomid = self.id,
-                roomtype = self:conf() and self:conf().roomtype
-            }
-            )
-        )
-        local ok = coroutine.yield() -- 挂起正在调用的协程的执行。
-        if not ok then -- 如果出错
-            if self.users[uid] ~= nil then -- 如果该玩家已经在用户列表中
-                timer.destroy(user.TimerID_MutexTo)
-                timer.destroy(user.TimerID_Timeout)
-                --timer.destroy(user.TimerID_UserBet)
-                self.users[uid] = nil -- 从玩家列表中移除
-                t.code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameFail") -- 进入房间失败
-                if linkid then
-                    net.send(
-                        linkid,
-                        uid,
-                        pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-                        pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_IntoGameRoomResp"),
-                        pb.encode("network.cmd.PBIntoGameRoomResp_S", t)
-                    )
-                    Utils:sendTipsToMe(linkid, uid, global.lang(37), 0)
-                end
-            end
-            log.info("idx(%s,%s) player:%s has been in another room", self.id, self.mid, uid)
-            return -- 出错则直接返回
-        end
-
-        user.co = coroutine.create(-- 创建一个新协程。
-            function(user) -- 函数参数由resume()中的第2个实参传递
-            Utils:queryUserInfo(--查询用户信息
-                { uid = uid, roomid = self.id, matchid = self.mid, carrybound = self:conf().carrybound }
-            )
-            local ok, ud = coroutine.yield() -- 挂起正在调用的协程的执行。等待结果
-            --print('ok', ok, 'ud', cjson.encode(ud))
-
-            if ud then -- 如果成功获取到玩家信息
-                -- userinfo
-                user.uid = uid
-                user.nobet_boardcnt = 0
-                user.playerinfo = {
-                    uid = uid,
-                    username = ud.name or "",
-                    nickurl = ud.nickurl or "",
-                    -- 玩家身上金额(momey或coin由房间类型决定)
-                    balance = self:conf().roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money") and
-                        ud.money or
-                        ud.coin,
-                    extra = {
-                        ip = user.ip or "",
-                        api = ud.api or ""
+            mutex.request(
+                pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Mutex"),
+                pb.enum_id("network.inter.Game2MutexSubCmd", "Game2MutexSubCmd_MutexCheck"),
+                pb.encode(
+                    "network.cmd.PBMutexCheck",
+                    {
+                        uid = uid,
+                        srvid = global.sid(),
+                        matchid = self.mid,
+                        roomid = self.id,
+                        roomtype = self:conf() and self:conf().roomtype
                     }
-                }
-                -- 携带数据
-                user.linkid = linkid
-                user.intots = user.intots or global.ctsec() -- 玩家进入时刻
-                user.api = ud.api
-                user.sid = ud.sid
-                user.userId = ud.userId
-                user.ud = ud
-            end
-
-            -- 防止协程返回时，玩家实质上已离线
-            if ok and user.state ~= EnumUserState.Intoing then
-                ok = false
-                log.info("idx(%s,%s) user %s logout or leave", self.id, self.mid, uid)
-            end
-
-            if not ok then
-                if self.users[uid] ~= nil then
-                    self.users[uid].state = EnumUserState.Leave -- 玩家离开
-                    t.code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_Fail")
-                    t.data = nil
+                )
+            )
+            local ok = coroutine.yield() -- 挂起正在调用的协程的执行。
+            if not ok then -- 如果出错
+                if self.users[uid] ~= nil then -- 如果该玩家已经在用户列表中
+                    timer.destroy(user.TimerID_MutexTo)
+                    timer.destroy(user.TimerID_Timeout)
+                    --timer.destroy(user.TimerID_UserBet)
+                    self.users[uid] = nil -- 从玩家列表中移除
+                    t.code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameFail") -- 进入房间失败
                     if linkid then
                         net.send(
                             linkid,
@@ -625,131 +699,193 @@ function Room:userInto(uid, linkid, rev)
                             pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_IntoGameRoomResp"),
                             pb.encode("network.cmd.PBIntoGameRoomResp_S", t)
                         )
+                        Utils:sendTipsToMe(linkid, uid, global.lang(37), 0)
                     end
                 end
-                log.info("idx(%s,%s) user %s not allowed into room", self.id, self.mid, uid)
-                return
+                log.info("idx(%s,%s) player:%s has been in another room", self.id, self.mid, uid)
+                return -- 出错则直接返回
             end
 
-            -- 下面是玩家成功进入房间的情况
-            -- 填写返回数据   计算各状态下的剩余时长
-            if self.state == EnumRoomState.Start then
-                t.data.lefttime = TimerID.TimerID_Start[2] - (global.ctms() - self.start_time)
-            elseif self.state == EnumRoomState.Betting then
-                t.data.lefttime = TimerID.TimerID_Betting[2] - (global.ctms() - self.betting_time)
-            elseif self.state == EnumRoomState.Show then -- 开牌阶段
-                -- 在摊牌阶段剩余时长 (需要根据牌的张数确定)
-                local cardnum = self.sdata.cards and #self.sdata.cards[1].cards or 0 -- 计算所发的牌张数
-                local time_per_card = self:conf().time_per_card or 300 -- 每发一张牌需要多长时间(毫秒)
-                t.data.lefttime = TimerID.TimerID_Show[2] - (global.ctms() - self.show_time) + cardnum * time_per_card -- +  TimerID.TimerID_Finish[2]
-                --t.data.card = g.copy(self.sdata.cards[1].cards)  -- 已发的牌数据
-                if cardnum > 0 then
-                    for i = 1, cardnum, 1 do
-                        table.insert(
-                            t.data.card,
-                            {
-                            color = self.poker:cardColor(self.sdata.cards[1].cards[i]), -- 牌花色
-                            count = self.poker:cardValue(self.sdata.cards[1].cards[i]) -- 牌点数
-                        }
-                        )
-                    end
-                end
-            elseif self.state == EnumRoomState.Finish then -- 结算阶段
-                t.data.lefttime = TimerID.TimerID_Finish[2] - (global.ctms() - self.finish_time)
-                -- t.data.card = g.copy(self.sdata.cards[1].cards) -- 已发的牌数据
-                local cardnum = self.sdata.cards and #self.sdata.cards[1].cards or 0 -- 计算所发的牌张数
-                if cardnum > 0 then
-                    for i = 1, cardnum, 1 do
-                        table.insert(
-                            t.data.card,
-                            {
-                            color = self.poker:cardColor(self.sdata.cards[1].cards[i]), -- 牌花色
-                            count = self.poker:cardValue(self.sdata.cards[1].cards[i]) -- 牌点数
-                        }
-                        )
-                    end
-                end
-            end
-
-            t.data.lefttime = t.data.lefttime > 0 and t.data.lefttime or 0
-            t.data.player = user.playerinfo -- 玩家信息(玩家ID、昵称、金额等)
-            t.data.seats = g.copy(self.vtable:getSeatsInfo()) -- 所有座位信息
-
-            if self.logmgr:size() <= self:conf().maxlogshowsize then
-                t.data.logs = self.logmgr:getLogs() -- 历史记录信息(各局赢方信息)
-            else
-                g.move(--拷贝历史记录(最近各局输赢情况)
-                    self.logmgr:getLogs(),
-                    self.logmgr:size() - self:conf().maxlogshowsize + 1,
-                    self.logmgr:size(),
-                    1,
-                    t.data.logs
-                )
-            end
-
-            t.data.betdata.uid = uid
-            t.data.betdata.usertotal = user.totalbet or 0 -- 玩家本局总下注金额
-            for k, v in pairs(self.bets) do -- 所有玩家在各下注区的下注情况
-                if v ~= 0 then -- 如果有玩家在该下注区下注了
-                    table.insert(
-                        t.data.betdata.areabet,
-                        {
-                        bettype = k, -- 下注区域
-                        betvalue = 0, --
-                        userareatotal = user.bets and user.bets[k] or 0, -- 当前玩家在该下注区的下注额
-                        areatotal = v -- 该区域的总下注额
-                        --odds			= self:conf() and self:conf().betarea and self:conf().betarea[k][1],
-                    }
+            user.co = coroutine.create(-- 创建一个新协程。
+                function(user) -- 函数参数由resume()中的第2个实参传递
+                    Utils:queryUserInfo(--查询用户信息
+                        { uid = uid, roomid = self.id, matchid = self.mid, carrybound = self:conf().carrybound }
                     )
+                    local ok, ud = coroutine.yield() -- 挂起正在调用的协程的执行。等待结果
+                    --print('ok', ok, 'ud', cjson.encode(ud))
+
+                    if ud then -- 如果成功获取到玩家信息
+                        -- userinfo
+                        user.uid = uid
+                        user.nobet_boardcnt = 0
+                        user.playerinfo = {
+                            uid = uid,
+                            username = ud.name or "",
+                            nickurl = ud.nickurl or "",
+                            -- 玩家身上金额(momey或coin由房间类型决定)
+                            balance = self:conf().roomtype == pb.enum_id("network.cmd.PBRoomType", "PBRoomType_Money")
+                                and
+                                ud.money or
+                                ud.coin,
+                            extra = {
+                                ip = user.ip or "",
+                                api = ud.api or ""
+                            }
+                        }
+                        -- 携带数据
+                        user.linkid = linkid
+                        user.intots = user.intots or global.ctsec() -- 玩家进入时刻
+                        user.api = ud.api
+                        user.sid = ud.sid
+                        user.userId = ud.userId
+                        user.ud = ud
+                    end
+
+                    -- 防止协程返回时，玩家实质上已离线
+                    if ok and user.state ~= EnumUserState.Intoing then
+                        ok = false
+                        log.info("idx(%s,%s) user %s logout or leave", self.id, self.mid, uid)
+                    end
+
+                    if not ok then
+                        if self.users[uid] ~= nil then
+                            self.users[uid].state = EnumUserState.Leave -- 玩家离开
+                            t.code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_Fail")
+                            t.data = nil
+                            if linkid then
+                                net.send(
+                                    linkid,
+                                    uid,
+                                    pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                                    pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_IntoGameRoomResp"),
+                                    pb.encode("network.cmd.PBIntoGameRoomResp_S", t)
+                                )
+                            end
+                        end
+                        log.info("idx(%s,%s) user %s not allowed into room", self.id, self.mid, uid)
+                        return
+                    end
+
+                    -- 下面是玩家成功进入房间的情况
+                    -- 填写返回数据   计算各状态下的剩余时长
+                    if self.state == EnumRoomState.Start then
+                        t.data.lefttime = TimerID.TimerID_Start[2] - (global.ctms() - self.start_time)
+                    elseif self.state == EnumRoomState.Betting then
+                        t.data.lefttime = TimerID.TimerID_Betting[2] - (global.ctms() - self.betting_time)
+                    elseif self.state == EnumRoomState.Show then -- 开牌阶段
+                        -- 在摊牌阶段剩余时长 (需要根据牌的张数确定)
+                        local cardnum = self.sdata.cards and #self.sdata.cards[1].cards or 0 -- 计算所发的牌张数
+                        local time_per_card = self:conf().time_per_card or 300 -- 每发一张牌需要多长时间(毫秒)
+                        t.data.lefttime = TimerID.TimerID_Show[2] - (global.ctms() - self.show_time) +
+                            cardnum * time_per_card -- +  TimerID.TimerID_Finish[2]
+                        --t.data.card = g.copy(self.sdata.cards[1].cards)  -- 已发的牌数据
+                        if cardnum > 0 then
+                            for i = 1, cardnum, 1 do
+                                table.insert(
+                                    t.data.card,
+                                    {
+                                        color = self.poker:cardColor(self.sdata.cards[1].cards[i]), -- 牌花色
+                                        count = self.poker:cardValue(self.sdata.cards[1].cards[i]) -- 牌点数
+                                    }
+                                )
+                            end
+                        end
+                    elseif self.state == EnumRoomState.Finish then -- 结算阶段
+                        t.data.lefttime = TimerID.TimerID_Finish[2] - (global.ctms() - self.finish_time)
+                        -- t.data.card = g.copy(self.sdata.cards[1].cards) -- 已发的牌数据
+                        local cardnum = self.sdata.cards and #self.sdata.cards[1].cards or 0 -- 计算所发的牌张数
+                        if cardnum > 0 then
+                            for i = 1, cardnum, 1 do
+                                table.insert(
+                                    t.data.card,
+                                    {
+                                        color = self.poker:cardColor(self.sdata.cards[1].cards[i]), -- 牌花色
+                                        count = self.poker:cardValue(self.sdata.cards[1].cards[i]) -- 牌点数
+                                    }
+                                )
+                            end
+                        end
+                    end
+
+                    t.data.lefttime = t.data.lefttime > 0 and t.data.lefttime or 0
+                    t.data.player = user.playerinfo -- 玩家信息(玩家ID、昵称、金额等)
+                    t.data.seats = g.copy(self.vtable:getSeatsInfo()) -- 所有座位信息
+
+                    if self.logmgr:size() <= self:conf().maxlogshowsize then
+                        t.data.logs = self.logmgr:getLogs() -- 历史记录信息(各局赢方信息)
+                    else
+                        g.move(--拷贝历史记录(最近各局输赢情况)
+                            self.logmgr:getLogs(),
+                            self.logmgr:size() - self:conf().maxlogshowsize + 1,
+                            self.logmgr:size(),
+                            1,
+                            t.data.logs
+                        )
+                    end
+
+                    t.data.betdata.uid = uid
+                    t.data.betdata.usertotal = user.totalbet or 0 -- 玩家本局总下注金额
+                    for k, v in pairs(self.bets) do -- 所有玩家在各下注区的下注情况
+                        if v ~= 0 then -- 如果有玩家在该下注区下注了
+                            table.insert(
+                                t.data.betdata.areabet,
+                                {
+                                    bettype = k, -- 下注区域
+                                    betvalue = 0, --
+                                    userareatotal = user.bets and user.bets[k] or 0, -- 当前玩家在该下注区的下注额
+                                    areatotal = v -- 该区域的总下注额
+                                    --odds			= self:conf() and self:conf().betarea and self:conf().betarea[k][1],
+                                }
+                            )
+                        end
+                    end
+                    log.info(
+                        "idx(%s,%s) into room: user %s linkid %s state %s balance %s user_count %s t %s",
+                        self.id,
+                        self.mid,
+                        uid,
+                        linkid,
+                        self.state, -- 当前房间状态
+                        user.playerinfo and user.playerinfo.balance or 0, -- 玩家身上金额
+                        self.user_count, -- 玩家数目
+                        cjson.encode(t)-- 进入房间消息响应包详情
+                    )
+
+                    local resp = pb.encode("network.cmd.PBIntoAndarBaharRoomResp_S", t) -- 进入房间返回消息
+                    log.info("idx(%s,%s) encode room response", self.id, self.mid)
+                    local to = {
+                        uid = uid,
+                        srvid = global.sid(),
+                        roomid = self.id,
+                        matchid = self.mid,
+                        maincmd = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                        subcmd = pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_IntoAndarBaharRoomResp"),
+                        data = resp
+                    }
+                    local synto = pb.encode("network.cmd.PBServerSynGame2ASAssignRoom", to)
+                    if linkid then
+                        net.shared(
+                            linkid,
+                            pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2AS"),
+                            pb.enum_id("network.inter.Game2ASSubCmd", "Game2ASSubCmd_SysAssignRoom"),
+                            synto
+                        )
+                    end
+
+                    user.state = EnumUserState.Playing
+                    self.user_cached = false
+                    self:recount() -- 重新计算该房间玩家数目
                 end
-            end
-            log.info(
-                "idx(%s,%s) into room: user %s linkid %s state %s balance %s user_count %s t %s",
-                self.id,
-                self.mid,
-                uid,
-                linkid,
-                self.state, -- 当前房间状态
-                user.playerinfo and user.playerinfo.balance or 0, -- 玩家身上金额
-                self.user_count, -- 玩家数目
-                cjson.encode(t)-- 进入房间消息响应包详情
             )
-
-            local resp = pb.encode("network.cmd.PBIntoAndarBaharRoomResp_S", t) -- 进入房间返回消息
-            log.info("idx(%s,%s) encode room response", self.id, self.mid)
-            local to = {
-                uid = uid,
-                srvid = global.sid(),
-                roomid = self.id,
-                matchid = self.mid,
-                maincmd = pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-                subcmd = pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_IntoAndarBaharRoomResp"),
-                data = resp
-            }
-            local synto = pb.encode("network.cmd.PBServerSynGame2ASAssignRoom", to)
-            if linkid then
-                net.shared(
-                    linkid,
-                    pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2AS"),
-                    pb.enum_id("network.inter.Game2ASSubCmd", "Game2ASSubCmd_SysAssignRoom"),
-                    synto
-                )
-            end
-
-            user.state = EnumUserState.Playing
-            self.user_cached = false
-            self:recount() -- 重新计算该房间玩家数目
+            timer.tick(
+                user.TimerID_Timeout,
+                TimerID.TimerID_Timeout[1],
+                TimerID.TimerID_Timeout[2],
+                onTimeout,
+                { uid, self }
+            )
+            coroutine.resume(user.co, user) -- 第一次唤醒协程
         end
-        )
-        timer.tick(
-            user.TimerID_Timeout,
-            TimerID.TimerID_Timeout[1],
-            TimerID.TimerID_Timeout[2],
-            onTimeout,
-            { uid, self }
-        )
-        coroutine.resume(user.co, user) -- 第一次唤醒协程
-    end
     )
     timer.tick(user.TimerID_MutexTo, TimerID.TimerID_MutexTo[1], TimerID.TimerID_MutexTo[2], onMutexTo, { uid, self })
     coroutine.resume(user.mutex, user) -- 唤醒协程  开始或继续协程 `user.mutex` 的运行。
@@ -768,7 +904,12 @@ function Room:userBet(uid, linkid, rev)
     }
     local user = self.users[uid] -- 根据玩家ID获取玩家对象
     local ok = true -- 默认下注成功
-    local user_bets = g.copy(DEFAULT_BET_TABLE) -- 玩家本次在各下注区的下注情况(一局中可能有多次下注)
+    local user_bets
+    if self:conf().isib then
+        user_bets = g.copy(DEFAULT_BET_TABLE_IB) -- 玩家本次在各下注区的下注情况(一局中可能有多次下注)
+    else
+        user_bets = g.copy(DEFAULT_BET_TABLE) -- 玩家本次在各下注区的下注情况(一局中可能有多次下注)
+    end
     local user_totalbet = 0 -- 玩家此次总下注金额
 
     -- 非法玩家
@@ -804,7 +945,13 @@ function Room:userBet(uid, linkid, rev)
     -- 遍历所有下注区
     for k, v in ipairs(rev.data.areabet) do
         if v and v.bettype and type(v.bettype) == "number" and v.betvalue and type(v.betvalue) == "number" then
-            if not g.isInTable(DEFAULT_BET_TYPE, v.bettype) or -- 下注类型非法(下注区域非法)
+            local betAreaIsLeagal = false
+            if self:conf().isib then
+                betAreaIsLeagal = g.isInTable(DEFAULT_BET_TYPE_IB, v.bettype)
+            else
+                betAreaIsLeagal = g.isInTable(DEFAULT_BET_TYPE, v.bettype)
+            end
+            if not betAreaIsLeagal or -- 下注类型非法(下注区域非法)
                 (self:conf() and not g.isInTable(self:conf().chips, v.betvalue))
             then -- 下注金额非法  -- 下注筹码较验
                 log.info("idx(%s,%s) user %s, bettype or betvalue invalid", self.id, self.mid, uid)
@@ -873,8 +1020,8 @@ function Room:userBet(uid, linkid, rev)
     if not ok then -- 如果出错
         --t.code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_Fail")
         --t.data = g.copy(rev.data) or nil
-        t.data.uid = rev.data and rev.data.uid or 0 -- 玩家ID
-        t.data.balance = self:getUserMoney(t.data.uid) - (user and user.totalbet or 0) -- 玩家身上金额
+        t.data.uid = uid or 0 -- 玩家ID
+        t.data.balance = self:getUserMoney(uid) -- 玩家身上金额
         t.data.usertotal = rev.data and rev.data.usertotal or 0 -- 该玩家在所有下注区总下注值(服务器填)
         for _, v in ipairs((rev.data and rev.data.areabet) or {}) do
             table.insert(t.data.areabet, v)
@@ -915,19 +1062,23 @@ function Room:userBet(uid, linkid, rev)
             self.id,
             self.mid,
             {
-            api = "debit",
-            sid = user.sid,
-            userId = user.userId,
-            transactionId = g.uuid(),
-            roundId = user.roundId,
-            gameId = tostring(global.stype())
-        }
+                api = "debit",
+                sid = user.sid,
+                userId = user.userId,
+                transactionId = g.uuid(),
+                roundId = user.roundId,
+                gameId = tostring(global.stype())
+            }
         )
     end
 
     -- 记录下注数据
     local areabet = {}
-    user.bets = user.bets or g.copy(DEFAULT_BET_TABLE) -- 玩家这一局在各下注区的下注情况
+    if self:conf().isib then
+        user.bets = user.bets or g.copy(DEFAULT_BET_TABLE_IB) -- 玩家这一局在各下注区的下注情况
+    else
+        user.bets = user.bets or g.copy(DEFAULT_BET_TABLE) -- 玩家这一局在各下注区的下注情况
+    end
     user.totalbet = user.totalbet or 0 -- 玩家这一局的总下注金额(各下注区下注总和)
     user.totalbet = user.totalbet + user_totalbet
     for k, v in pairs(user_bets) do -- 玩家本次在各下注区的下注情况(一局中可能有多次下注)
@@ -949,22 +1100,22 @@ function Room:userBet(uid, linkid, rev)
         table.insert(
             areabet, -- 本次在各下注区域下注情况
             {
-            bettype = v.bettype, -- 在哪个下注区下注
-            betvalue = v.betvalue, -- 下注金额
-            userareatotal = user.bets[v.bettype], -- 本局该玩家在该区域的总下注额
-            areatotal = self.bets[v.bettype] -- 本局所有玩家在该下注区的总下注额
-        }
+                bettype = v.bettype, -- 在哪个下注区下注
+                betvalue = v.betvalue, -- 下注金额
+                userareatotal = user.bets[v.bettype], -- 本局该玩家在该区域的总下注额
+                areatotal = self.bets[v.bettype] -- 本局所有玩家在该下注区的总下注额
+            }
         )
     end
     --  将下注记录插入队列末尾
     table.insert(
         self.betque,
         {
-        uid = uid,
-        balance = self:getUserMoney(uid),
-        usertotal = user.totalbet,
-        areabet = areabet
-    }
+            uid = uid,
+            balance = self:getUserMoney(uid),
+            usertotal = user.totalbet,
+            areabet = areabet
+        }
     )
 
     -- 返回数据
@@ -1126,14 +1277,14 @@ local function onNotifyBet(self)
                     "network.cmd.PBAndarBaharNotifyBettingInfo_N", -- 通知下注信息
                     t,
                     function(pointer, length)
-                    self:sendCmdToPlayingUsers(
-                        pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-                        pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_AndarBaharNotifyBettingInfo"),
-                        pointer,
-                        length
-                    )
-                    --log.info("idx(%s,%s) PBAndarBaharNotifyBettingInfo_N : %s %s", self.id, #t.bets, cjson.encode(t))
-                end
+                        self:sendCmdToPlayingUsers(
+                            pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                            pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_AndarBaharNotifyBettingInfo"),
+                            pointer,
+                            length
+                        )
+                        --log.info("idx(%s,%s) PBAndarBaharNotifyBettingInfo_N : %s %s", self.id, #t.bets, cjson.encode(t))
+                    end
                 )
             end
             --log.info("idx:%s notifybet", self.id)
@@ -1264,13 +1415,13 @@ function Room:start()
         "network.cmd.PBAndarBaharNotifyStart_N", -- 通知游戏开始
         t,
         function(pointer, length)
-        self:sendCmdToPlayingUsers(
-            pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-            pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_AndarBaharNotifyStart"),
-            pointer,
-            length
-        )
-    end
+            self:sendCmdToPlayingUsers(
+                pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_AndarBaharNotifyStart"),
+                pointer,
+                length
+            )
+        end
     )
     timer.tick(self.timer, TimerID.TimerID_Start[1], TimerID.TimerID_Start[2], onStart, self)
 
@@ -1311,13 +1462,13 @@ function Room:betting()
         "network.cmd.PBAndarBaharNotifyBet_N", -- 开始下注倒计时
         { t = TimerID.TimerID_Betting[2] }, -- 离下注结束还有多久
         function(pointer, length)
-        self:sendCmdToPlayingUsers(-- 通知玩家可以下注
-            pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-            pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_AndarBaharNotifyBet"), -- 通知玩家可以下注了
-            pointer,
-            length
-        )
-    end
+            self:sendCmdToPlayingUsers(-- 通知玩家可以下注
+                pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_AndarBaharNotifyBet"), -- 通知玩家可以下注了
+                pointer,
+                length
+            )
+        end
     )
 
     timer.tick(self.timer, TimerID.TimerID_Betting[1], TimerID.TimerID_Betting[2], onBetting, self) -- 启动定时器
@@ -1335,15 +1486,28 @@ end
 
 -- 计算牌型统计(各下注区总赢次数+最近连续未赢次数)
 function Room:calBetST()
-    self.betst = g.copy(DEFAULT_BETST_TABLE) -- 相当于初始化
-
-    for _, v in ipairs(self.logmgr:getLogs()) do -- 遍历所有输赢日志(记录各局的赢方)
-        for _, bt in ipairs(DEFAULT_BET_TYPE) do -- 遍历各下注区
-            if g.isInTable(v.wintype, bt) then -- 如果该下注区赢
-                self.betst[bt].lasthit = 0 -- 距离上次赢的局数为0   -- 该区域连续多少局未赢
-                self.betst[bt].hitcount = self.betst[bt].hitcount + 1 -- 该下注区赢的次数增1
-            else
-                self.betst[bt].lasthit = self.betst[bt].lasthit + 1 -- 该区域连续多少局未赢
+    if self:conf().isib then
+        self.betst = g.copy(DEFAULT_BETST_TABLE_IB) -- 相当于初始化
+        for _, v in ipairs(self.logmgr:getLogs()) do -- 遍历所有输赢日志(记录各局的赢方)
+            for _, bt in ipairs(DEFAULT_BET_TYPE_IB) do -- 遍历各下注区
+                if g.isInTable(v.wintype, bt) then -- 如果该下注区赢
+                    self.betst[bt].lasthit = 0 -- 距离上次赢的局数为0   -- 该区域连续多少局未赢
+                    self.betst[bt].hitcount = self.betst[bt].hitcount + 1 -- 该下注区赢的次数增1
+                else
+                    self.betst[bt].lasthit = self.betst[bt].lasthit + 1 -- 该区域连续多少局未赢
+                end
+            end
+        end
+    else
+        self.betst = g.copy(DEFAULT_BETST_TABLE) -- 相当于初始化
+        for _, v in ipairs(self.logmgr:getLogs()) do -- 遍历所有输赢日志(记录各局的赢方)
+            for _, bt in ipairs(DEFAULT_BET_TYPE) do -- 遍历各下注区
+                if g.isInTable(v.wintype, bt) then -- 如果该下注区赢
+                    self.betst[bt].lasthit = 0 -- 距离上次赢的局数为0   -- 该区域连续多少局未赢
+                    self.betst[bt].hitcount = self.betst[bt].hitcount + 1 -- 该下注区赢的次数增1
+                else
+                    self.betst[bt].lasthit = self.betst[bt].lasthit + 1 -- 该区域连续多少局未赢
+                end
             end
         end
     end
@@ -1376,21 +1540,32 @@ function Room:show()
     -- 生成牌，计算牌型
     self.poker:reset()
 
-    local cards = self.poker:getNCard(52) -- 获取50张牌(一局最多发50张牌)
+    self.cards = self.poker:getNCard(52) -- 获取50张牌(一局最多发50张牌)
 
-    local cardNum, wintype = self.poker:getWinType(cards) -- 获取赢的一方及赢牌所在位置
+    local cardNum, wintype
+    if self:conf().isib then
+        cardNum, wintype = self.poker:getWinType_IB(self.cards) -- 获取赢的一方及赢牌所在位置
+    else
+        cardNum, wintype = self.poker:getWinType(self.cards) -- 获取赢的一方及赢牌所在位置
+    end
 
     --根据盈利率触发胜负策略
     local needExchange = false -- 是否需要换牌
     local needSendResult = true
     --根据盈利率触发胜负策略
     local usertotalbet = 0 -- 真实玩家下注总金额
-    for _, v in pairs(EnumAndarBaharType) do
-        usertotalbet = usertotalbet + (self.userbets[v] or 0)
+    if self:conf() and self:conf().isib then
+        for _, v in pairs(EnumAndarBaharType_IB) do
+            usertotalbet = usertotalbet + (self.userbets[v] or 0)
+        end
+    else
+        for _, v in pairs(EnumAndarBaharType) do
+            usertotalbet = usertotalbet + (self.userbets[v] or 0)
+        end
     end
     -- 根据系统盈利率设置是否需要换牌(更改输赢方)
     if usertotalbet > 0 then
-        if self:conf().global_profit_switch then
+        if self:conf().global_profit_switch then -- 全局控制模式
             local msg = { ctx = 0, matchid = self.mid, roomid = self.id, data = {} }
             for k, v in pairs(self.users) do
                 if not Utils:isRobot(v.api) then
@@ -1400,24 +1575,43 @@ function Room:show()
             if #msg.data > 0 then
                 Utils:queryProfitResult(msg)
             end
-            local profit_rate, usertotalbet_inhand, usertotalprofit_inhand = self:getTotalProfitRate(wintype)
-            local last_profitrate = profit_rate
-            if profit_rate < self:conf().profitrate_threshold_lowerlimit then
-                log.info("idx(%s,%s) tigh mode is trigger", self.mid, self.id)
-                local rnd = rand.rand_between(1, 10000)
-                if profit_rate < self:conf().profitrate_threshold_minilimit or rnd <= 5000 then
-                    -- 需要确保系统赢，换牌系统不一定赢
-                    local realPlayerWin = self:GetRealPlayerWin(wintype)
-                    if realPlayerWin > 10000 then
-                        needExchange = true -- 需要换牌
-                        if wintype == EnumAndarBaharType.EnumAndarBaharType_Andar then
-                            wintype = EnumAndarBaharType.EnumAndarBaharType_Bahar
+
+            local profit_rate, usertotalbet_inhand, usertotalprofit_inhand
+            for k = 1, 200, 1 do
+                profit_rate, usertotalbet_inhand, usertotalprofit_inhand = self:getTotalProfitRate(wintype)
+                local last_profitrate = profit_rate
+                if profit_rate < self:conf().profitrate_threshold_lowerlimit then
+                    log.info("idx(%s,%s) tigh mode is trigger", self.mid, self.id)
+                    local rnd = rand.rand_between(1, 10000)
+                    if profit_rate < self:conf().profitrate_threshold_minilimit or rnd <= 5000 then
+                        -- 需要确保系统赢，换牌系统不一定赢
+                        local realPlayerWin = self:GetRealPlayerWin(wintype)
+                        if realPlayerWin > self:conf().profit_max_win then
+                            -- needExchange = true -- 需要换牌
+                            -- if wintype[1] == EnumAndarBaharType.EnumAndarBaharType_Andar then
+                            --     wintype[1] = EnumAndarBaharType.EnumAndarBaharType_Bahar
+                            -- else
+                            --     wintype[1] = EnumAndarBaharType.EnumAndarBaharType_Andar
+                            -- end
+
+                            -- 需要重新发牌
+                            self.poker:reset()
+                            self.cards = self.poker:getNCard(52) -- 获取50张牌(一局最多发50张牌)
+                            if self:conf().isib then
+                                cardNum, wintype = self.poker:getWinType_IB(self.cards) -- 获取赢的一方及赢牌所在位置
+                            else
+                                cardNum, wintype = self.poker:getWinType(self.cards) -- 获取赢的一方及赢牌所在位置
+                            end
+                            --profit_rate, usertotalbet_inhand, usertotalprofit_inhand = self:getTotalProfitRate(wintype)
+                            --log.info("idx(%s,%s) swap cards is trigger", self.mid, self.id)
                         else
-                            wintype = EnumAndarBaharType.EnumAndarBaharType_Andar
+                            break
                         end
-                        profit_rate, usertotalbet_inhand, usertotalprofit_inhand = self:getTotalProfitRate(wintype)
-                        log.info("idx(%s,%s) swap cards is trigger", self.mid, self.id)
+                    else
+                        break
                     end
+                else
+                    break
                 end
             end
             local curday = global.cdsec()
@@ -1429,181 +1623,170 @@ function Room:show()
             needSendResult = false
             self.result_co = coroutine.create(
                 function()
-                local msg = { ctx = 0, matchid = self.mid, roomid = self.id, data = {} }
-                for k, v in pairs(self.users) do
-                    if not Utils:isRobot(v.api) then
-                        table.insert(msg.data, { uid = k, chips = v.playchips or 0, betchips = v.totalbet or 0 })
+                    local msg = { ctx = 0, matchid = self.mid, roomid = self.id, data = {} }
+                    for k, v in pairs(self.users) do
+                        if not Utils:isRobot(v.api) then
+                            table.insert(msg.data, { uid = k, chips = v.playchips or 0, betchips = v.totalbet or 0 })
+                        end
                     end
-                end
-                log.info("idx(%s,%s) start result request %s", self.id, self.mid, cjson.encode(msg))
-                Utils:queryProfitResult(msg)
-                local ok, res = coroutine.yield() -- 等待查询结果
-                log.info("idx(%s,%s) finish result %s", self.id, self.mid, cjson.encode(res))
-                if ok and res then
-                    for _, v in ipairs(res) do
-                        local uid, r, maxwin = v.uid, v.res, v.maxwin
-                        if uid and uid == self.realPlayerUID and r then
-                            local user = self.users[uid]
-                            if user then
-                                user.maxwin = r * maxwin
-                            end
-                            log.debug("uid=%s, r=%s, maxwin=%s", uid, tostring(r), tostring(maxwin))
-                            for i = 0, 3, 1 do
-                                -- 根据牌数据计算真实玩家的输赢值
-                                local realPlayerWin = self:GetRealPlayerWin(wintype)
-                                log.debug(
-                                    "idx(%s,%s) redeal  i=%s, realPlayerWin=%s",
-                                    self.id,
-                                    self.mid,
-                                    tostring(i),
-                                    tostring(realPlayerWin)
-                                )
-                                if r > 0 and maxwin then
-                                    if maxwin >= realPlayerWin and realPlayerWin > 0 then
-                                        break
-                                    end
-                                    if realPlayerWin < 0 and realPlayerWin * -1 >= maxwin then
-                                        break
-                                    end
-                                elseif r < 0 then -- 真实玩家输
-                                    if realPlayerWin < 0 then
-                                        break
-                                    end
-                                elseif r == 0 and maxwin then
-                                    if maxwin >= realPlayerWin then
-                                        break
-                                    end
-                                else
-                                    break
+                    log.info("idx(%s,%s) start result request %s", self.id, self.mid, cjson.encode(msg))
+                    Utils:queryProfitResult(msg)
+                    local ok, res = coroutine.yield() -- 等待查询结果
+                    log.info("idx(%s,%s) finish result %s", self.id, self.mid, cjson.encode(res))
+                    if ok and res then
+                        for _, v in ipairs(res) do
+                            local uid, r, maxwin = v.uid, v.res, v.maxwin
+                            if uid and uid == self.realPlayerUID and r then
+                                local user = self.users[uid]
+                                if user then
+                                    user.maxwin = r * maxwin
                                 end
-                                -- 未满足条件，需要替换位置(不需要重新发牌)
-                                needExchange = true --
-                                break
-                                -- log.debug("idx(%s,%s) redeal  cardNum=%s, wintype=%s", cardNum, tostring(wintype))
-                            end -- for
-                        end
-                    end
-                    log.info("idx(%s,%s) result success", self.id, self.mid)
-                end
-                if needExchange then -- 如果需要换牌(更改输赢方)
-                    if cardNum > 2 then
-                        cards[cardNum - 1], cards[cardNum] = cards[cardNum], cards[cardNum - 1]
-                        cardNum = cardNum - 1
-                    else
-                        for i = 3, 6, 1 do
-                            if self.poker:cardValue(cards[1]) ~= self.poker:cardValue(cards[i]) then
-                                cards[2], cards[i] = cards[i], cards[2]
-                                cards[3], cards[i] = cards[i], cards[3]
-                                cardNum = cardNum + 1
-                                break
+                                log.debug("uid=%s, r=%s, maxwin=%s", uid, tostring(r), tostring(maxwin))
+                                for i = 0, 300, 1 do
+                                    -- 根据牌数据计算真实玩家的输赢值
+                                    local realPlayerWin = self:GetRealPlayerWin(wintype)
+                                    log.debug(
+                                        "idx(%s,%s) redeal  i=%s, realPlayerWin=%s",
+                                        self.id,
+                                        self.mid,
+                                        tostring(i),
+                                        tostring(realPlayerWin)
+                                    )
+                                    if r > 0 and maxwin then
+                                        if maxwin >= realPlayerWin and realPlayerWin > 0 then
+                                            break
+                                        end
+                                        if realPlayerWin < 0 and realPlayerWin * -1 >= maxwin then
+                                            break
+                                        end
+                                    elseif r < 0 then -- 真实玩家输
+                                        if realPlayerWin < 0 then
+                                            break
+                                        end
+                                    elseif r == 0 and maxwin then
+                                        if maxwin >= realPlayerWin then
+                                            break
+                                        end
+                                    end
+                                    -- 未满足条件，需要重新发牌
+                                    self.poker:reset()
+                                    self.cards = self.poker:getNCard(52) -- 获取50张牌(一局最多发50张牌)
+                                    if self:conf().isib then
+                                        cardNum, wintype = self.poker:getWinType_IB(self.cards) -- 获取赢的一方及赢牌所在位置
+                                    else
+                                        cardNum, wintype = self.poker:getWinType(self.cards) -- 获取赢的一方及赢牌所在位置
+                                    end
+                                    -- 未满足条件，需要替换位置(不需要重新发牌)
+                                    -- needExchange = true --
+                                    -- break
+                                    -- log.debug("idx(%s,%s) redeal  cardNum=%s, wintype=%s", cardNum, tostring(wintype))
+                                end -- for
                             end
                         end
+                        log.info("idx(%s,%s) result success", self.id, self.mid)
                     end
-                    cardNum, wintype = self.poker:getWinType(cards) -- 获取赢的一方及赢牌所在位置
-                end
 
-                -- 填写返回数据
-                local t = {
-                    cardnum = cardNum, -- 本轮发出的牌总张数
-                    card = {}, -- 牌数据
-                    areainfo = {}
-                }
-
-                -- 拷贝牌数据
-                for i = 1, cardNum, 1 do
-                    table.insert(
-                        t.card,
-                        {
-                        color = self.poker:cardColor(cards[i]), -- 牌花色
-                        count = self.poker:cardValue(cards[i]) -- 牌点数
+                    -- 填写返回数据
+                    local t = {
+                        cardnum = cardNum, -- 本轮发出的牌总张数
+                        card = {}, -- 牌数据
+                        areainfo = {}
                     }
+
+                    -- 拷贝牌数据
+                    for i = 1, cardNum, 1 do
+                        table.insert(
+                            t.card,
+                            {
+                                color = self.poker:cardColor(self.cards[i]), -- 牌花色
+                                count = self.poker:cardValue(self.cards[i]) -- 牌点数
+                            }
+                        )
+                    end
+                    if self:conf().isib then
+                        -- 遍历所有下注区
+                        for _, v in pairs(DEFAULT_BET_TYPE_IB) do
+                            table.insert(
+                                t.areainfo,
+                                {
+                                    bettype = v,
+                                    -- iswin = wintype == v
+                                    iswin = g.isInTable(wintype, v)
+                                }
+                            )
+                        end
+                    else
+                        -- 遍历所有下注区
+                        for _, v in pairs(DEFAULT_BET_TYPE) do
+                            table.insert(
+                                t.areainfo,
+                                {
+                                    bettype = v,
+                                    -- iswin = wintype == v
+                                    iswin = g.isInTable(wintype, v)
+                                }
+                            )
+                        end
+                    end
+
+                    --print("PBAndarBaharNotifyShow_N", cjson.encode(t))
+                    -- dqw 通知玩家摊牌(发送牌数据)
+                    pb.encode(
+                        "network.cmd.PBAndarBaharNotifyShow_N", -- 摊牌
+                        t,
+                        function(pointer, length)
+                            self:sendCmdToPlayingUsers(
+                                pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                                pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_AndarBaharNotifyShow"),
+                                pointer,
+                                length
+                            )
+                            log.info("idx(%s,%s) PBAndarBaharNotifyShow_N : %s", self.id, self.mid, cjson.encode(t))
+                        end
                     )
-                end
-
-                -- 遍历所有下注区
-                for _, v in pairs(DEFAULT_BET_TYPE) do
-                    table.insert(
-                        t.areainfo,
-                        {
-                        bettype = v,
-                        iswin = wintype == v
-                    }
+                    -- 每多发一张牌多300ms
+                    local time_per_card = self:conf().time_per_card or 300
+                    timer.tick(
+                        self.timer,
+                        TimerID.TimerID_Show[1],
+                        TimerID.TimerID_Show[2] + cardNum * time_per_card,
+                        onShow,
+                        self
                     )
+
+                    --print(self:conf().maxlogsavedsize, self:conf().roomtype)
+                    --print(cjson.encode(self.logmgr))
+
+                    -- 生成一条记录
+                    --local logitem = { wintype = { wintype } } -- 存放哪一方赢
+                    local logitem = { wintype = wintype } -- 存放哪一方赢
+                    self.logmgr:push(logitem) -- 添加记录(这一局的输赢结果)
+                    log.info("idx(%s,%s) log %s", self.id, self.mid, cjson.encode(logitem))
+
+                    self:calBetST() --计算牌局统计(各下注区总赢次数+最近连续未赢次数)
+
+                    -- 牌局统计
+                    -- self.sdata.cards = {{cards = {cards[1]}}, {cards = {cards[2]}}}  -- 牌数据 ?
+                    self.sdata.cards = { { cards = {} } }
+                    self.sdata.cardstype = {} -- 牌型
+                    -- self.sdata.cards = g.copy(t.card)  -- 保存这一局所发的牌数据
+
+                    for i = 1, cardNum, 1 do
+                        table.insert(self.sdata.cards[1].cards, self.cards[i])
+                    end
+
+                    --table.insert(self.sdata.cardstype, pokertypeA)
+                    --table.insert(self.sdata.cardstype, pokertypeB)
+                    --self.sdata.wintypes = { wintype } -- 赢方
+                    self.sdata.wintypes = wintype -- 赢方
+                    --self.sdata.winpokertype = winPokerType
                 end
-
-                --print("PBAndarBaharNotifyShow_N", cjson.encode(t))
-                -- dqw 通知玩家摊牌(发送牌数据)
-                pb.encode(
-                    "network.cmd.PBAndarBaharNotifyShow_N", -- 摊牌
-                    t,
-                    function(pointer, length)
-                    self:sendCmdToPlayingUsers(
-                        pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-                        pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_AndarBaharNotifyShow"),
-                        pointer,
-                        length
-                    )
-                    log.info("idx(%s,%s) PBAndarBaharNotifyShow_N : %s", self.id, self.mid, cjson.encode(t))
-                end
-                )
-                -- 每多发一张牌多300ms
-                local time_per_card = self:conf().time_per_card or 300
-                timer.tick(
-                    self.timer,
-                    TimerID.TimerID_Show[1],
-                    TimerID.TimerID_Show[2] + cardNum * time_per_card,
-                    onShow,
-                    self
-                )
-
-                --print(self:conf().maxlogsavedsize, self:conf().roomtype)
-                --print(cjson.encode(self.logmgr))
-
-                -- 生成一条记录
-                local logitem = { wintype = { wintype } } -- 存放哪一方赢
-                self.logmgr:push(logitem) -- 添加记录(这一局的输赢结果)
-                log.info("idx(%s,%s) log %s", self.id, self.mid, cjson.encode(logitem))
-
-                self:calBetST() --计算牌局统计(各下注区总赢次数+最近连续未赢次数)
-
-                -- 牌局统计
-                -- self.sdata.cards = {{cards = {cards[1]}}, {cards = {cards[2]}}}  -- 牌数据 ?
-                self.sdata.cards = { { cards = {} } }
-                self.sdata.cardstype = {} -- 牌型
-                -- self.sdata.cards = g.copy(t.card)  -- 保存这一局所发的牌数据
-
-                for i = 1, cardNum, 1 do
-                    table.insert(self.sdata.cards[1].cards, cards[i])
-                end
-
-                --table.insert(self.sdata.cardstype, pokertypeA)
-                --table.insert(self.sdata.cardstype, pokertypeB)
-                self.sdata.wintypes = { wintype } -- 赢方
-                --self.sdata.winpokertype = winPokerType
-            end
             )
             timer.tick(self.timer, TimerID.TimerID_Result[1], TimerID.TimerID_Result[2], onResultTimeout, { self })
             coroutine.resume(self.result_co)
         end
     end
     if needSendResult then
-        if needExchange then -- 如果需要换牌(更改输赢方)
-            if cardNum > 2 then
-                cards[cardNum - 1], cards[cardNum] = cards[cardNum], cards[cardNum - 1]
-                cardNum = cardNum - 1
-            else
-                for i = 3, 6, 1 do
-                    if self.poker:cardValue(cards[1]) ~= self.poker:cardValue(cards[i]) then
-                        cards[2], cards[i] = cards[i], cards[2]
-                        cards[3], cards[i] = cards[i], cards[3]
-                        cardNum = cardNum + 1
-                        break
-                    end
-                end
-            end
-            cardNum, wintype = self.poker:getWinType(cards) -- 获取赢的一方及赢牌所在位置
-        end
-
         -- 填写返回数据
         local t = {
             cardnum = cardNum, -- 本轮发出的牌总张数
@@ -1616,21 +1799,36 @@ function Room:show()
             table.insert(
                 t.card,
                 {
-                color = self.poker:cardColor(cards[i]), -- 牌花色
-                count = self.poker:cardValue(cards[i]) -- 牌点数
-            }
+                    color = self.poker:cardColor(self.cards[i]), -- 牌花色
+                    count = self.poker:cardValue(self.cards[i]) -- 牌点数
+                }
             )
         end
 
-        -- 遍历所有下注区
-        for _, v in pairs(DEFAULT_BET_TYPE) do
-            table.insert(
-                t.areainfo,
-                {
-                bettype = v,
-                iswin = wintype == v
-            }
-            )
+        if self:conf().isib then
+            -- 遍历所有下注区
+            for _, v in pairs(DEFAULT_BET_TYPE_IB) do
+                table.insert(
+                    t.areainfo,
+                    {
+                        bettype = v,
+                        --iswin = wintype == v
+                        iswin = g.isInTable(wintype, v)
+                    }
+                )
+            end
+        else
+            -- 遍历所有下注区
+            for _, v in pairs(DEFAULT_BET_TYPE) do
+                table.insert(
+                    t.areainfo,
+                    {
+                        bettype = v,
+                        --iswin = wintype == v
+                        iswin = g.isInTable(wintype, v)
+                    }
+                )
+            end
         end
 
         --print("PBAndarBaharNotifyShow_N", cjson.encode(t))
@@ -1639,14 +1837,14 @@ function Room:show()
             "network.cmd.PBAndarBaharNotifyShow_N", -- 摊牌
             t,
             function(pointer, length)
-            self:sendCmdToPlayingUsers(
-                pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
-                pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_AndarBaharNotifyShow"),
-                pointer,
-                length
-            )
-            log.info("idx(%s,%s) PBAndarBaharNotifyShow_N : %s", self.id, self.mid, cjson.encode(t))
-        end
+                self:sendCmdToPlayingUsers(
+                    pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Game"),
+                    pb.enum_id("network.cmd.PBGameSubCmdID", "PBGameSubCmdID_AndarBaharNotifyShow"),
+                    pointer,
+                    length
+                )
+                log.info("idx(%s,%s) PBAndarBaharNotifyShow_N : %s", self.id, self.mid, cjson.encode(t))
+            end
         )
         -- 每多发一张牌多300ms
         local time_per_card = self:conf().time_per_card or 300
@@ -1656,7 +1854,8 @@ function Room:show()
         --print(cjson.encode(self.logmgr))
 
         -- 生成一条记录
-        local logitem = { wintype = { wintype } } -- 存放哪一方赢
+        --local logitem = { wintype = { wintype } } -- 存放哪一方赢
+        local logitem = { wintype = wintype } -- 存放哪一方赢
         self.logmgr:push(logitem) -- 添加记录(这一局的输赢结果)
         log.info("idx(%s,%s) log %s", self.id, self.mid, cjson.encode(logitem))
 
@@ -1669,12 +1868,13 @@ function Room:show()
         -- self.sdata.cards = g.copy(t.card)  -- 保存这一局所发的牌数据
 
         for i = 1, cardNum, 1 do
-            table.insert(self.sdata.cards[1].cards, cards[i])
+            table.insert(self.sdata.cards[1].cards, self.cards[i])
         end
 
         --table.insert(self.sdata.cardstype, pokertypeA)
         --table.insert(self.sdata.cardstype, pokertypeB)
-        self.sdata.wintypes = { wintype } -- 赢方
+        --self.sdata.wintypes = { wintype } -- 赢方
+        self.sdata.wintypes = wintype -- 赢方
         --self.sdata.winpokertype = winPokerType
     end
 end
@@ -1697,16 +1897,16 @@ local function onFinish(self)
                 table.insert(
                     self.onlinelst, -- 插入在线列表
                     {
-                    player = {
-                        -- 玩家信息
-                        uid = k, --玩家ID
-                        username = v.playerinfo and v.playerinfo.username or "", --玩家昵称
-                        nickurl = v.playerinfo and v.playerinfo.nickurl or "",
-                        balance = self:getUserMoney(k) -- 玩家身上金额
-                    },
-                    totalbet = totalbet, --总下注额
-                    wincnt = wincnt -- 赢得次数
-                }
+                        player = {
+                            -- 玩家信息
+                            uid = k, --玩家ID
+                            username = v.playerinfo and v.playerinfo.username or "", --玩家昵称
+                            nickurl = v.playerinfo and v.playerinfo.nickurl or "",
+                            balance = self:getUserMoney(k) -- 玩家身上金额
+                        },
+                        totalbet = totalbet, --总下注额
+                        wincnt = wincnt -- 赢得次数
+                    }
                 )
                 if wincnt > self.onlinelst[bigwinneridx].wincnt then
                     bigwinneridx = #self.onlinelst -- 更新神算子索引
@@ -1718,8 +1918,8 @@ local function onFinish(self)
         table.sort(
             self.onlinelst, -- 根据总下注额排序
             function(a, b)
-            return a.totalbet > b.totalbet
-        end
+                return a.totalbet > b.totalbet
+            end
         )
         table.insert(self.onlinelst, 1, bigwinner) -- 将大赢家插入到第一个位置
         --log.info("[idx:%s] onlinelst %s", self.id, cjson.encode(self.onlinelst))
@@ -1841,43 +2041,83 @@ function Room:finish()
             v.totalfee = 0 -- 该局总服务费用
             totalbet = totalbet + v.totalbet -- 该局所有玩家总押注额
 
-            -- 计算闲家盈利
-            for _, bettype in ipairs(DEFAULT_BET_TYPE) do -- 遍历所有下注区
-                local profit = 0 -- 玩家在当前下注区赢利(未扣除下注额)
-                local pureprofit = 0 -- 玩家在当前下注区纯利(扣除了下注额)
-                local bets = v.bets[bettype] -- 玩家在当前下注区总下注值
-                local fee = 0
+            if self:conf().isib then
+                -- 计算闲家盈利
+                for _, bettype in ipairs(DEFAULT_BET_TYPE_IB) do -- 遍历所有下注区
+                    local profit = 0 -- 玩家在当前下注区赢利(未扣除下注额)
+                    local pureprofit = 0 -- 玩家在当前下注区纯利(扣除了下注额)
+                    local bets = v.bets[bettype] -- 玩家在当前下注区总下注值
+                    local fee = 0
 
-                if bets > 0 then -- 如果该玩家在该下注区下注了
-                    -- 计算赢利
-                    if g.isInTable(lastlogitem.wintype, bettype) then -- 押中 判断当前区域是否赢
-                        profit = bets * (self:conf() and self:conf().betarea and self:conf().betarea[bettype][1]) -- 赢利(未扣除下注额)
-                        --扣除服务费 盈利下注区的5%
-                        --fee = math.floor((profit - bets) * (self:conf() and (self:conf().fee or 0) or 0))
-                        v.totalfee = v.totalfee + fee -- 累计服务费
-                        profit = profit - fee
+                    if bets > 0 then -- 如果该玩家在该下注区下注了
+                        -- 计算赢利
+                        if g.isInTable(lastlogitem.wintype, bettype) then -- 押中 判断当前区域是否赢
+                            profit = bets * (self:conf() and self:conf().betarea and self:conf().betarea[bettype][1]) -- 赢利(未扣除下注额)
+                            --扣除服务费 盈利下注区的5%
+                            --fee = math.floor((profit - bets) * (self:conf() and (self:conf().fee or 0) or 0))
+                            v.totalfee = v.totalfee + fee -- 累计服务费
+                            profit = profit - fee
+                        end
+                        pureprofit = profit - bets -- 在该下注区的纯收益=本次返回-该下注区的下注额
+
+                        v.totalprofit = v.totalprofit + profit -- 该玩家本局总收益(未扣除下注额)
+                        v.totalpureprofit = v.totalpureprofit + pureprofit -- 该玩家本局总纯收益(扣除了下注额)
+
+                        self.profits[bettype] = self.profits[bettype] or 0
+                        self.profits[bettype] = self.profits[bettype] + profit -- 这一局该下注区的总收益(未扣除下注额)
+
+                        -- 牌局统计
+                        table.insert(
+                            self.sdata.users[k].areas,
+                            {
+                                bettype = bettype, -- 下注区
+                                betvalue = bets, -- 该玩家在该下注区的下注总金额
+                                profit = profit, -- 在该下注区的收益(未扣除下注额，只扣除服务费)
+                                pureprofit = pureprofit, --该玩家本局在该下注区的纯收益
+                                fee = fee -- 该玩家本局在该下注区的服务费
+                            }
+                        )
                     end
-                    pureprofit = profit - bets -- 在该下注区的纯收益=本次返回-该下注区的下注额
+                end
+            else
+                -- 计算闲家盈利
+                for _, bettype in ipairs(DEFAULT_BET_TYPE) do -- 遍历所有下注区
+                    local profit = 0 -- 玩家在当前下注区赢利(未扣除下注额)
+                    local pureprofit = 0 -- 玩家在当前下注区纯利(扣除了下注额)
+                    local bets = v.bets[bettype] -- 玩家在当前下注区总下注值
+                    local fee = 0
 
-                    v.totalprofit = v.totalprofit + profit -- 该玩家本局总收益(未扣除下注额)
-                    v.totalpureprofit = v.totalpureprofit + pureprofit -- 该玩家本局总纯收益(扣除了下注额)
+                    if bets > 0 then -- 如果该玩家在该下注区下注了
+                        -- 计算赢利
+                        if g.isInTable(lastlogitem.wintype, bettype) then -- 押中 判断当前区域是否赢
+                            profit = bets * (self:conf() and self:conf().betarea and self:conf().betarea[bettype][1]) -- 赢利(未扣除下注额)
+                            --扣除服务费 盈利下注区的5%
+                            --fee = math.floor((profit - bets) * (self:conf() and (self:conf().fee or 0) or 0))
+                            v.totalfee = v.totalfee + fee -- 累计服务费
+                            profit = profit - fee
+                        end
+                        pureprofit = profit - bets -- 在该下注区的纯收益=本次返回-该下注区的下注额
 
-                    self.profits[bettype] = self.profits[bettype] or 0
-                    self.profits[bettype] = self.profits[bettype] + profit -- 这一局该下注区的总收益(未扣除下注额)
+                        v.totalprofit = v.totalprofit + profit -- 该玩家本局总收益(未扣除下注额)
+                        v.totalpureprofit = v.totalpureprofit + pureprofit -- 该玩家本局总纯收益(扣除了下注额)
 
-                    -- 牌局统计
-                    table.insert(
-                        self.sdata.users[k].areas,
-                        {
-                        bettype = bettype, -- 下注区
-                        betvalue = bets, -- 该玩家在该下注区的下注总金额
-                        profit = profit, -- 在该下注区的收益(未扣除下注额，只扣除服务费)
-                        pureprofit = pureprofit, --该玩家本局在该下注区的纯收益
-                        fee = fee -- 该玩家本局在该下注区的服务费
-                    }
-                    )
-                end -- end of if bets > 0 then
-            end -- end of for _, bettype in ipairs(DEFAULT_BET_TYPE) do
+                        self.profits[bettype] = self.profits[bettype] or 0
+                        self.profits[bettype] = self.profits[bettype] + profit -- 这一局该下注区的总收益(未扣除下注额)
+
+                        -- 牌局统计
+                        table.insert(
+                            self.sdata.users[k].areas,
+                            {
+                                bettype = bettype, -- 下注区
+                                betvalue = bets, -- 该玩家在该下注区的下注总金额
+                                profit = profit, -- 在该下注区的收益(未扣除下注额，只扣除服务费)
+                                pureprofit = pureprofit, --该玩家本局在该下注区的纯收益
+                                fee = fee -- 该玩家本局在该下注区的服务费
+                            }
+                        )
+                    end
+                end
+            end
 
             --盈利扣水
             if v.totalpureprofit > 0 and (self:conf().rebate or 0) > 0 then
@@ -1896,15 +2136,15 @@ function Room:finish()
             end
             self.sdata.users[k].extrainfo = cjson.encode(
                 {
-                ip = v.playerinfo and v.playerinfo.extra and v.playerinfo.extra.ip,
-                api = v.playerinfo and v.playerinfo.extra and v.playerinfo.extra.api,
-                roomtype = self:conf().roomtype, -- 房间类型(金币/豆子)
-                -- bankeruid = self.bankmgr:banker()
-                bankeruid = 0,
-                money = self:getUserMoney(k) or 0,
-                maxwin = v.maxwin or 0,
-                playchips = v.playchips or 0 -- 2021-12-24
-            }
+                    ip = v.playerinfo and v.playerinfo.extra and v.playerinfo.extra.ip,
+                    api = v.playerinfo and v.playerinfo.extra and v.playerinfo.extra.api,
+                    roomtype = self:conf().roomtype, -- 房间类型(金币/豆子)
+                    -- bankeruid = self.bankmgr:banker()
+                    bankeruid = 0,
+                    money = self:getUserMoney(k) or 0,
+                    maxwin = v.maxwin or 0,
+                    playchips = v.playchips or 0 -- 2021-12-24
+                }
             )
 
             log.info(
@@ -1947,21 +2187,50 @@ function Room:finish()
                 }
                 table.insert(ranks, rank) -- 插入在排行榜中的玩家排名信息
             else -- 该玩家还未在排行榜中
-                -- 在线玩家 uid 为 0    其他在线玩家
-                for _, bettype in ipairs(DEFAULT_BET_TYPE) do
-                    local areas = self.sdata.users[k] and self.sdata.users[k].areas or {}
-                    local area = areas[bettype] -- 该玩家在该下注区的信息
-                    if area and area.bettype then
-                        onlinerank.totalprofit = (onlinerank.totalprofit or 0) + (area.profit or 0) -- 各区域总收益
-                        onlinerank.areas[area.bettype] = onlinerank.areas[area.bettype] or {}
-                        onlinerank.areas[area.bettype].bettype = area.bettype -- 下注区域
-                        onlinerank.areas[area.bettype].betvalue = (onlinerank.areas[area.bettype].betvalue or 0) + (area.betvalue or 0) -- 增加下注额
-                        if g.isInTable(lastlogitem.wintype, area.bettype) then -- 押中 判断当前区域是否赢
-                            onlinerank.areas[area.bettype].profit = (onlinerank.areas[area.bettype].profit or 0) + (area.profit or 0) -- 增加该下注区收益
-                            onlinerank.areas[area.bettype].pureprofit = (onlinerank.areas[area.bettype].pureprofit or 0) + (area.pureprofit or 0) -- 增加该下注区纯收益
-                        else
-                            onlinerank.areas[area.bettype].profit = 0
-                            onlinerank.areas[area.bettype].pureprofit = 0
+                if self:conf().isib then
+                    -- 在线玩家 uid 为 0    其他在线玩家
+                    for _, bettype in ipairs(DEFAULT_BET_TYPE_IB) do
+                        local areas = self.sdata.users[k] and self.sdata.users[k].areas or {}
+                        local area = areas[bettype] -- 该玩家在该下注区的信息
+                        if area and area.bettype then
+                            onlinerank.totalprofit = (onlinerank.totalprofit or 0) + (area.profit or 0) -- 各区域总收益
+                            onlinerank.areas[area.bettype] = onlinerank.areas[area.bettype] or {}
+                            onlinerank.areas[area.bettype].bettype = area.bettype -- 下注区域
+                            onlinerank.areas[area.bettype].betvalue = (onlinerank.areas[area.bettype].betvalue or 0) +
+                                (area.betvalue or 0) -- 增加下注额
+                            if g.isInTable(lastlogitem.wintype, area.bettype) then -- 押中 判断当前区域是否赢
+                                onlinerank.areas[area.bettype].profit = (onlinerank.areas[area.bettype].profit or 0) +
+                                    (area.profit or 0) -- 增加该下注区收益
+                                onlinerank.areas[area.bettype].pureprofit = (
+                                    onlinerank.areas[area.bettype].pureprofit or 0)
+                                    + (area.pureprofit or 0) -- 增加该下注区纯收益
+                            else
+                                onlinerank.areas[area.bettype].profit = 0
+                                onlinerank.areas[area.bettype].pureprofit = 0
+                            end
+                        end
+                    end
+                else
+                    -- 在线玩家 uid 为 0    其他在线玩家
+                    for _, bettype in ipairs(DEFAULT_BET_TYPE) do
+                        local areas = self.sdata.users[k] and self.sdata.users[k].areas or {}
+                        local area = areas[bettype] -- 该玩家在该下注区的信息
+                        if area and area.bettype then
+                            onlinerank.totalprofit = (onlinerank.totalprofit or 0) + (area.profit or 0) -- 各区域总收益
+                            onlinerank.areas[area.bettype] = onlinerank.areas[area.bettype] or {}
+                            onlinerank.areas[area.bettype].bettype = area.bettype -- 下注区域
+                            onlinerank.areas[area.bettype].betvalue = (onlinerank.areas[area.bettype].betvalue or 0) +
+                                (area.betvalue or 0) -- 增加下注额
+                            if g.isInTable(lastlogitem.wintype, area.bettype) then -- 押中 判断当前区域是否赢
+                                onlinerank.areas[area.bettype].profit = (onlinerank.areas[area.bettype].profit or 0) +
+                                    (area.profit or 0) -- 增加该下注区收益
+                                onlinerank.areas[area.bettype].pureprofit = (
+                                    onlinerank.areas[area.bettype].pureprofit or 0)
+                                    + (area.pureprofit or 0) -- 增加该下注区纯收益
+                            else
+                                onlinerank.areas[area.bettype].profit = 0
+                                onlinerank.areas[area.bettype].pureprofit = 0
+                            end
                         end
                     end
                 end
@@ -2018,15 +2287,28 @@ function Room:finish()
 
     -- 牌局统计数据上报
     self.sdata.areas = {}
-    for _, bettype in ipairs(DEFAULT_BET_TYPE) do
-        table.insert(
-            self.sdata.areas,
-            {
-            bettype = bettype, -- 下注区域
-            betvalue = self.bets[bettype], -- 该下注区总下注额
-            profit = self.profits[bettype] -- 该下注区总收益
-        }
-        )
+    if self:conf().isib then
+        for _, bettype in ipairs(DEFAULT_BET_TYPE_IB) do
+            table.insert(
+                self.sdata.areas,
+                {
+                    bettype = bettype, -- 下注区域
+                    betvalue = self.bets[bettype], -- 该下注区总下注额
+                    profit = self.profits[bettype] -- 该下注区总收益
+                }
+            )
+        end
+    else
+        for _, bettype in ipairs(DEFAULT_BET_TYPE) do
+            table.insert(
+                self.sdata.areas,
+                {
+                    bettype = bettype, -- 下注区域
+                    betvalue = self.bets[bettype], -- 该下注区总下注额
+                    profit = self.profits[bettype] -- 该下注区总收益
+                }
+            )
+        end
     end
 
     self.sdata.stime = self.start_time / 1000 -- 开始时刻(秒)
@@ -2038,13 +2320,13 @@ function Room:finish()
     --      cjson.encode({bankeruid = self.bankmgr:banker(), bankerprofit = banker_profit, totalfee = totalfee})
     self.sdata.extrainfo = cjson.encode(
         {
-        bankeruid = 0,
-        bankerprofit = 0,
-        totalfee = 0,
-        playercount = self:getRealPlayerCount(),
-        playerbet = usertotalbet,
-        playerprofit = usertotalprofit
-    }
+            bankeruid = 0,
+            bankerprofit = 0,
+            totalfee = 0,
+            playercount = self:getRealPlayerCount(),
+            playerbet = usertotalbet,
+            playerprofit = usertotalprofit
+        }
     ) -- 因为该游戏没有庄家
 
     if self.hasRealPlayerBet then
@@ -2102,8 +2384,8 @@ function Room:getTotalProfitRate(wintype)
     for k, v in g.pairsByKeys(
         self.total_bets,
         function(arg1, arg2)
-        return arg1 > arg2
-    end
+            return arg1 > arg2
+        end
     ) do
         if sn >= self:conf().profitrate_threshold_maxdays then
             sn = k
@@ -2119,8 +2401,8 @@ function Room:getTotalProfitRate(wintype)
     for k, v in g.pairsByKeys(
         self.total_profit,
         function(arg1, arg2)
-        return arg1 > arg2
-    end
+            return arg1 > arg2
+        end
     ) do
         if sn >= self:conf().profitrate_threshold_maxdays then
             sn = k
@@ -2132,11 +2414,23 @@ function Room:getTotalProfitRate(wintype)
     self.total_profit[sn] = nil
 
     local usertotalbet_inhand, usertotalprofit_inhand = 0, 0
-    for _, v in pairs(EnumAndarBaharType) do
-        usertotalbet_inhand = usertotalbet_inhand + (self.userbets[v] or 0)
-        if wintype == v then
-            usertotalprofit_inhand = usertotalprofit_inhand +
-                (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1])
+    if self:conf() and self:conf().isib then
+        for _, v in pairs(EnumAndarBaharType_IB) do
+            usertotalbet_inhand = usertotalbet_inhand + (self.userbets[v] or 0)
+            --if wintype == v then
+            if g.isInTable(wintype, v) then
+                usertotalprofit_inhand = usertotalprofit_inhand +
+                    (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1])
+            end
+        end
+    else
+        for _, v in pairs(EnumAndarBaharType) do
+            usertotalbet_inhand = usertotalbet_inhand + (self.userbets[v] or 0)
+            --if wintype == v then
+            if g.isInTable(wintype, v) then
+                usertotalprofit_inhand = usertotalprofit_inhand +
+                    (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1])
+            end
         end
     end
     totalbets = totalbets + usertotalbet_inhand
@@ -2282,9 +2576,9 @@ function Room:userTableInfo(uid, linkid, rev)
                 table.insert(
                     t.data.card,
                     {
-                    color = self.poker:cardColor(self.sdata.cards[1].cards[i]), -- 牌花色
-                    count = self.poker:cardValue(self.sdata.cards[1].cards[i]) -- 牌点数
-                }
+                        color = self.poker:cardColor(self.sdata.cards[1].cards[i]), -- 牌花色
+                        count = self.poker:cardValue(self.sdata.cards[1].cards[i]) -- 牌点数
+                    }
                 )
             end
         end
@@ -2297,9 +2591,9 @@ function Room:userTableInfo(uid, linkid, rev)
                 table.insert(
                     t.data.card,
                     {
-                    color = self.poker:cardColor(self.sdata.cards[1].cards[i]), -- 牌花色
-                    count = self.poker:cardValue(self.sdata.cards[1].cards[i]) -- 牌点数
-                }
+                        color = self.poker:cardColor(self.sdata.cards[1].cards[i]), -- 牌花色
+                        count = self.poker:cardValue(self.sdata.cards[1].cards[i]) -- 牌点数
+                    }
                 )
             end
         end
@@ -2310,6 +2604,7 @@ function Room:userTableInfo(uid, linkid, rev)
     local user = self.users[uid]
     if user then
         --t.data.player = user.playerinfo -- 玩家信息(玩家ID、昵称、金额等)
+        user.playerinfo = user.playerinfo or {}
         t.data.player.uid = uid -- 玩家UID
         t.data.player.nickname = user.playerinfo.nickname or "" -- 昵称
         t.data.player.username = user.playerinfo.username or ""
@@ -2345,12 +2640,12 @@ function Room:userTableInfo(uid, linkid, rev)
                 table.insert(
                     t.data.betdata.areabet,
                     {
-                    bettype = k, -- 下注区域
-                    betvalue = 0, --
-                    userareatotal = user.bets and user.bets[k] or 0, -- 当前玩家在该下注区的下注额
-                    areatotal = v -- 该区域的总下注额
-                    --odds			= self:conf() and self:conf().betarea and self:conf().betarea[k][1],
-                }
+                        bettype = k, -- 下注区域
+                        betvalue = 0, --
+                        userareatotal = user.bets and user.bets[k] or 0, -- 当前玩家在该下注区的下注额
+                        areatotal = v -- 该区域的总下注额
+                        --odds			= self:conf() and self:conf().betarea and self:conf().betarea[k][1],
+                    }
                 )
             end
         end
@@ -2378,11 +2673,21 @@ end
 function Room:GetRealPlayerWin(wintype)
     local realPlayerWin = 0
     local userTotalBet = 0 -- 真实玩家下注总金额
-    for _, v in pairs(EnumAndarBaharType) do
-        userTotalBet = userTotalBet + (self.userbets[v] or 0)
-        if wintype == v then
-            realPlayerWin = realPlayerWin +
-                (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1])
+    if self:conf().isib then
+        for _, v in pairs(EnumAndarBaharType_IB) do
+            userTotalBet = userTotalBet + (self.userbets[v] or 0)
+            if g.isInTable(wintype, v) then
+                realPlayerWin = realPlayerWin +
+                    (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1])
+            end
+        end
+    else
+        for _, v in pairs(EnumAndarBaharType) do
+            userTotalBet = userTotalBet + (self.userbets[v] or 0)
+            if g.isInTable(wintype, v) then
+                realPlayerWin = realPlayerWin +
+                    (self.userbets[v] or 0) * (self:conf() and self:conf().betarea and self:conf().betarea[v][1])
+            end
         end
     end
     realPlayerWin = realPlayerWin - userTotalBet
@@ -2524,3 +2829,5 @@ function Room:createRobotResult(robotsInfo)
     end
     Utils:addRobot(self, robotsInfo) -- 增加机器人
 end
+
+

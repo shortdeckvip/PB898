@@ -420,6 +420,8 @@ function Room:init()
     self.m_winner_sid = 0
     self.mdir = 1
     self.logid = self.statistic:genLogId()
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
+     
 end
 
 function Room:reload()
@@ -664,6 +666,9 @@ function Room:userLeave(uid, linkid, opcode, force)
     end
     if user.TimerID_Expense then
         timer.destroy(user.TimerID_Expense)
+    end
+    if not Utils:isRobot(user.api) then
+        Utils:updateChipsNum(global.sid(), uid, 0)
     end
 
     self.users[uid] = nil
@@ -913,6 +918,9 @@ function Room:userInto(uid, linkid, mid, quick, ip, api)
                             timer.destroy(user.TimerID_MutexTo)
                             timer.destroy(user.TimerID_Timeout)
                             timer.destroy(user.TimerID_Expense)
+                            if not Utils:isRobot(self.users[uid].api) then
+                                Utils:updateChipsNum(global.sid(), uid, 0)
+                            end
                             self.users[uid] = nil
                             net.send(
                                 linkid,
@@ -1053,7 +1061,8 @@ function Room:userTableInfo(uid, linkid, rev)
         readyLeftTime = ((self.t_msec or 0) / 1000 + TimerID.TimerID_Ready[2] + TimerID.TimerID_Check[2] / 1000) -
             (global.ctsec() - self.endtime),
         minbuyinbb = self.conf.minbuyinbb,
-        maxbuyinbb = self.conf.maxbuyinbb
+        maxbuyinbb = self.conf.maxbuyinbb,
+        maxinto = (self.conf.maxinto or 0) * (self.conf.ante or 0) / (self.conf.sb or 1)
     }
     tableinfo.readyLeftTime =
         self.ready_start_time and TimerID.TimerID_Ready[2] - (global.ctsec() - self.ready_start_time) or
@@ -1187,7 +1196,9 @@ function Room:stand(seat, uid, stype)
         user.active_stand = true
 
         seat:stand(uid)
-
+        if not Utils:isRobot(user.api) then
+            Utils:updateChipsNum(global.sid(), uid, user.chips)
+        end
         pb.encode(
             "network.cmd.PBTexasPlayerStand",
             {sid = seat.sid, type = stype},
@@ -2362,6 +2373,9 @@ function Room:finish()
                     self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
                 end
             end
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), user.uid, seat.chips)
+            end
         end
     end
     self.statistic:appendLogs(self.sdata, self.logid)
@@ -2522,7 +2536,9 @@ function Room:userBuyin(uid, linkid, rev, system)
             seat:setIsBuyining(false)
             user.totalbuyin = seat.totalbuyin
             seat:buyinToChips()
-
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), uid, seat.chips)
+            end
             pb.encode(
                 "network.cmd.PBTexasPlayerBuyin",
                 {
@@ -3077,3 +3093,4 @@ function Room:userWalletResp(rev)
         end
     end
 end
+

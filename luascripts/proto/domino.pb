@@ -1,5 +1,5 @@
 
-É
+ù
 domino.protonetwork.cmdcommon.proto"â
 PBDominoSeat+
 seat (2.network.cmd.PBSeatInfoRseat
@@ -21,7 +21,7 @@ chipinTime
 addtimeCount (RaddtimeCount&
 lastOutCardSid (RlastOutCardSid*
 lastOutCardMoney (RlastOutCardMoney 
-passCardPay (RpassCardPay"û
+passCardPay (RpassCardPay"∏
 PBDominoTableInfo
 gameId (RgameId
 	seatCount (R	seatCount
@@ -47,7 +47,8 @@ matchState
 readyLeftTime (RreadyLeftTime
 minbuyin (Rminbuyin 
 middlebuyin (Rmiddlebuyin
-maxbuyin (Rmaxbuyin"U
+maxbuyin (Rmaxbuyin
+maxinto (Rmaxinto"U
 PBDominoTableInfoResp<
 	tableInfo (2.network.cmd.PBDominoTableInfoR	tableInfo"ä
 PBDominoPlayerSit5

@@ -104,7 +104,22 @@ function Room:init()
 
     -- 用户相关
     self.users = self.users or {}
-    self.user_count = 0
+    self.users[0] = self.users[0] or {}
+    self.users[0].uid = 0
+    self.users[0].state = EnumUserState.Playing
+    self.users[0].linkid = nil
+    self.users[0].api = "2001"
+    self.users[0].ip = ""
+    self.users[0].roomid = self.id
+    self.users[0].matchid = self.mid
+    self.users[0].playerinfo = self.users[0].playerinfo or { balance = 2000000000, extra = {} }
+    self.users[0].totalbet = self.users[0].totalbet or 0
+    self.users[0].profit = self.users[0].profit or 0
+    self.users[0].totalprofit = self.users[0].totalprofit or 0
+    self.users[0].totalpureprofit = self.users[0].totalpureprofit or 0
+    self.users[0].totalfee = self.users[0].totalfee or 0
+    self.users[0].bets = self.users[0].bets or g.copy(DEFAULT_BET_TABLE)
+    self.user_count = self.user_count or 1
 
     -- 牌局相关
     self.start_time = global.ctms()
@@ -153,6 +168,7 @@ function Room:init()
     self.lastRemoveRobotTime = 0 -- 上次移除机器人时刻(秒)
     self.needRobotNum = 30 -- 默认需要创建30个机器人
     self.lastNeedRobotTime = 0  -- 上次需要机器人时刻
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
 end
 
 function Room:roundReset()
@@ -527,6 +543,13 @@ function Room:userInto(uid, linkid, rev)
     user.mobile = rev.mobile
     user.roomid = self.id
     user.matchid = self.mid
+    user.playerinfo = user.playerinfo or { extra = {} }
+    user.totalbet = user.totalbet or 0
+    user.profit = user.profit or 0
+    user.totalprofit = user.totalprofit or 0
+    user.totalpureprofit = user.totalpureprofit or 0
+    user.totalfee = user.totalfee or 0
+    user.bets = user.bets or g.copy(DEFAULT_BET_TABLE)
 
     user.mutex = coroutine.create(
         function(user)
@@ -636,7 +659,7 @@ function Room:userInto(uid, linkid, rev)
                 t.data.lefttime = TimerID.TimerID_Finish[2] - (global.ctms() - self.finish_time)
             end
             t.data.lefttime = t.data.lefttime > 0 and t.data.lefttime or 0
-            t.data.player = user.playerinfo
+            t.data.player = user.playerinfo or {}
             t.data.seats = g.copy(self.vtable:getSeatsInfo())
             if self.logmgr:size() <= self:conf().maxlogshowsize then
                 t.data.logs = self.logmgr:getLogs()
@@ -729,8 +752,9 @@ function Room:userBet(uid, linkid, rev)
     local user_bets = g.copy(DEFAULT_BET_TABLE) -- 玩家此次下注
     local user_totalbet = 0 -- 玩家此次总下注
     --庄家余额
+    self.users[self.bankmgr:banker()] = self.users[self.bankmgr:banker()] or {}
     local banker_money =
-    self.users[self.bankmgr:banker()] and self.users[self.bankmgr:banker()].playerinfo.balance or
+    self.users[self.bankmgr:banker()].playerinfo and self.users[self.bankmgr:banker()].playerinfo.balance or
         self:conf().init_banker_money
     local betype_bets = 0
 
@@ -1106,12 +1130,15 @@ function Room:getBankerInfo()
     }
     local u = self.users[self.bankmgr:banker()]
     if u then
-        res.banker = {
-            uid = u.uid,
-            nickurl = u.playerinfo.nickurl,
-            nickname = u.playerinfo.username,
-            balance = u.playerinfo.balance
-        }
+        if u.uid and u.uid ~= 0 then
+            u.playerinfo = u.playerinfo or {}
+            res.banker = {
+                uid = u.uid,
+                nickurl = u.playerinfo.nickurl,
+                nickname = u.playerinfo.username,
+                balance = u.playerinfo.balance
+            }
+        end
     end
     return res
 end
@@ -1152,7 +1179,7 @@ function Room:userBankOpReq(uid, linkid, rev)
             return
         end
 
-        if user.playerinfo.balance < self:conf().min_onbank_moneycnt then
+        if user.playerinfo and user.playerinfo.balance < self:conf().min_onbank_moneycnt then
             t.code = pb.enum_id("network.cmd.PBBankOperatorCode", "PBBankOperatorCode_NotEnoughMoney")
             return
         end
@@ -1310,7 +1337,7 @@ local function onCreateRobot(self)
             if current_time - self.lastRemoveRobotTime > 100 then
                 self.lastRemoveRobotTime = current_time
                 for uid, user in pairs(self.users) do
-                    if user and not user.linkid then
+                    if user and not user.linkid and uid ~= self.bankmgr:banker() and uid ~= 0 then
                         if user.playerinfo and user.playerinfo.balance <= self.minChips then
                             self.users[uid] = nil
                         elseif user.createtime and user.lifetime and current_time - user.createtime >= user.lifetime then
@@ -1538,10 +1565,10 @@ function Room:show()
                 log.info("idx(%s,%s) tigh mode is trigger", self.id, self.mid)
                 -- 真实玩家该局总收益
                 local realPlayerWin = self:GetRealPlayerWin(true, dragon, tiger) -- 真实玩家赢取到的金额
-                if realPlayerWin > 10000 then
+                if realPlayerWin > self:conf().profit_max_win then
                     if profit_rate < self:conf().profitrate_threshold_minilimit or rnd <= 5000 then
                         -- 确保系统赢，换牌系统不一定赢(待优化)
-                        for i = 0, 3, 1 do
+                        for i = 0, 5, 1 do
                             -- 生成牌，计算牌型
                             self.poker:reset()
                             cards = self.poker:getNCard(2) -- dragon tiger
@@ -1881,6 +1908,7 @@ local function onFinish(self)
                     )
                 end
                 log.info("idx(%s,%s) kick user:%s state:%s", self.id, self.mid, k, tostring(v.state))
+
                 self.users[k] = nil
                 self.user_cached = false
                 self:recount()
@@ -2003,7 +2031,7 @@ function Room:finish()
             v.totalprofit = 0
             v.totalpureprofit = 0
             v.totalfee = 0
-            totalbet = totalbet + v.totalbet
+            totalbet = totalbet + v.totalbet or 0
             local dragon_tiger_bets = 0
             -- 计算闲家盈利
             for _, bettype in ipairs(DEFAULT_BET_TYPE) do
@@ -2555,6 +2583,7 @@ function Room:userTableInfo(uid, linkid, rev)
     if user then
         --t.data.player = user.playerinfo
         t.data.player.uid = uid -- 玩家UID
+        user.playerinfo = user.playerinfo or {}
         t.data.player.nickname = user.playerinfo.nickname or "" -- 昵称
         t.data.player.username = user.playerinfo.username or ""
         t.data.player.viplv = user.playerinfo.viplv or 0
@@ -2790,3 +2819,5 @@ function Room:createRobotResult(robotsInfo)
     end
     Utils:addRobot(self, robotsInfo) -- 增加机器人
 end
+
+

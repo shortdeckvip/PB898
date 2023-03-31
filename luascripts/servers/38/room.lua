@@ -276,6 +276,8 @@ function Room:init()
     self.users = self.users or {}
     self.users[0] = self.users[0] or {money = 2000000}
     self:sit(self.seats[self.conf.maxuser], self.bankerUID, 2000000) -- 默认系统坐庄
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
+     
 end
 
 -- 重新加载配置文件
@@ -605,6 +607,9 @@ function Room:userLeave(uid, linkid, client)
         timer.destroy(user.TimerID_MutexTo)
     end
 
+    if not Utils:isRobot(user.api) then
+        Utils:updateChipsNum(global.sid(), uid, 0)
+    end
     self.users[uid] = nil
     self.user_cached = false -- 玩家缓存变更(无效)
     local resp =
@@ -829,6 +834,9 @@ function Room:userInto(uid, linkid, mid, quick, ip)
                         if self.users[uid] ~= nil then
                             timer.destroy(user.TimerID_MutexTo)
                             timer.destroy(user.TimerID_Timeout)
+                            if not Utils:isRobot(self.users[uid].api) then
+                                Utils:updateChipsNum(global.sid(), uid, 0)
+                            end
                             self.users[uid] = nil
                             net.send(
                                 linkid,
@@ -989,7 +997,8 @@ function Room:userTableInfo(uid, linkid, rev)
         addBetMin = self.conf.addbetmin * self.conf.ante or 10 * self.conf.ante,
         addBetMax = self.conf.addbetmax * self.conf.ante or 100 * self.conf.ante,
         bankerMinMoney = self.conf.min_onbank_moneycnt or 10000,
-        stateTimeLength = self:getCurrentStateTimeLength()
+        stateTimeLength = self:getCurrentStateTimeLength(),
+        maxinto = (self.conf.maxinto or 0) * (self.conf.ante or 0) / (self.conf.sb or 1)
     }
 
     tableinfo.serialBankTimes = self.conf.max_bank_successive_cnt or 10
@@ -1175,6 +1184,9 @@ function Room:stand(seat, uid, stype)
         user.room_delta = seat.room_delta
 
         seat:stand(uid)
+        if not Utils:isRobot(user.api) then
+            Utils:updateChipsNum(global.sid(), uid, user.chips)
+        end
 
         pb.encode(
             "network.cmd.PBTexasPlayerStand",
@@ -1215,6 +1227,9 @@ function Room:sit(seat, uid, buyinmoney, isplaying)
                 )
             end
         )
+        if not Utils:isRobot(user.api) then
+            Utils:updateChipsNum(global.sid(), uid, seat.chips)
+        end
         log.info("idx(%s,%s) player sit in seatinfo:%s", self.id, self.mid, cjson.encode(sitcmd))
     end
 end
@@ -2429,6 +2444,9 @@ function Room:finish()
                     self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
                 end
             end
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), user.uid, seat.chips)
+            end
         end
     end
     log.info("idx(%s,%s) appendLogs(),self.sdata=%s", self.id, self.mid, cjson.encode(self.sdata))
@@ -2874,3 +2892,5 @@ function Room:getCurrentStateTimeLength()
     end
     return stateTimeLength
 end
+
+

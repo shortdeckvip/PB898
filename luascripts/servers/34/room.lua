@@ -266,11 +266,25 @@ local function onCheck(self)
         --log.info("idx(%s,%s,%s) onCheck playing size=%s", self.id, self.mid, tostring(self.logid), self:getPlayingSize())
         if self:getPlayingSize() < 2 then
             self.ready_start_time = nil
-            local _, r = self:count()
+            local all, r = self:count()
             if hasuser and r == 0 and not self.notify_createrobot then
                 self.notify_createrobot = true
                 log.debug("idx(%s,%s,%s) notify create robot", self.id, self.mid, tostring(self.logid))
                 Utils:notifyCreateRobot(self.conf.roomtype, self.mid, self.id, 1)
+            else
+                if not self.hasRun then
+                    self.hasRun = true
+                    log.debug("idx(%s,%s,%s) hasuser=%s, notify_createrobot=%s, all=%s, r=%s", self.id, self.mid,
+                        tostring(self.logid), tostring(hasuser), tostring(self.notify_createrobot), all, r)
+                end
+                if self:getPlayingSize() == 1 and r == 0 then
+                    for i = 1, #self.seats do
+                        if self.seats[i].isplaying then
+                            log.debug("idx(%s,%s,%s) real uid=%s, hasuser=%s", self.id, self.mid,
+                                tostring(self.logid), tostring(self.seats[i].uid), tostring(hasuser))
+                        end
+                    end
+                end
             end
             if r == 1 then
                 local robot = self.users[robotid or 0]
@@ -400,6 +414,8 @@ function Room:init()
     self.tableStartCount = 0
     self.m_winner_sid = 0
     self.logid = self.statistic:genLogId()
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
+     
 end
 
 function Room:reload()
@@ -699,6 +715,9 @@ function Room:userLeave(uid, linkid, code)
         resp
     )
     log.info("idx(%s,%s,%s) userLeave:%s,%s", self.id, self.mid, tostring(self.logid), uid, user.gamecount or 0)
+    if not Utils:isRobot(user.api) then
+        Utils:updateChipsNum(global.sid(), uid, 0)
+    end
     self.users[uid] = nil
     self.user_cached = false
 
@@ -943,6 +962,9 @@ function Room:userInto(uid, linkid, mid, quick, ip, api)
                             timer.destroy(user.TimerID_MutexTo)
                             timer.destroy(user.TimerID_Timeout)
                             timer.destroy(user.TimerID_Expense)
+                            if not Utils:isRobot(self.users[uid].api) then
+                                Utils:updateChipsNum(global.sid(), uid, 0)
+                            end
                             self.users[uid] = nil
                             net.send(
                                 linkid,
@@ -1115,7 +1137,8 @@ function Room:userTableInfo(uid, linkid, rev)
         leftcards = self.state ~= pb.enum_id("network.cmd.PBRummyTableState", "PBRummyTableState_None") and
             self.poker:getLeftCardsCnt() or
             0,
-        middlebuyin = self.conf.referrerbb * self.conf.ante
+        middlebuyin = self.conf.referrerbb * self.conf.ante,
+        maxinto = (self.conf.maxinto or 0) * (self.conf.ante or 0) / (self.conf.sb or 1)
     }
     tableinfo.readyLeftTime =
         self.ready_start_time and TimerID.TimerID_Ready[2] - (global.ctsec() - self.ready_start_time) or
@@ -1395,7 +1418,9 @@ function Room:stand(seat, uid, stype)
         user.active_stand = true
 
         seat:stand(uid)
-
+        if not Utils:isRobot(user.api) then
+            Utils:updateChipsNum(global.sid(), uid, user.chips)
+        end
         pb.encode(
             "network.cmd.PBTexasPlayerStand",
             {sid = seat.sid, type = stype},
@@ -2460,6 +2485,9 @@ function Room:dealHandCards()
                 if ok and res then
                     for _, v in ipairs(res) do
                         local uid, r, maxwin = v.uid, v.res, v.maxwin
+                        if self.conf.ante > 100 and r > 0 then
+                            r = 0
+                        end
                         if self.sdata.users[uid] and self.sdata.users[uid].extrainfo then
                             local extrainfo = cjson.decode(self.sdata.users[uid].extrainfo)
                             if extrainfo then
@@ -2504,7 +2532,7 @@ function Room:dealHandCards()
     elseif self.conf.global_profit_switch and hasplayer then
         --[[
             15%控制输：随机一个玩家输，随机一个AI赢；若无AI，随机一个其他玩家赢
-            12%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
+            7%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
             剩余概率不控制
         ]]
         local randV = rand.rand_between(1, 10000)
@@ -2518,7 +2546,7 @@ function Room:dealHandCards()
                 self:dealHandCardsCommon(nil, realPlayerSeatList[rand.rand_between(1,#realPlayerSeatList)])
             end
         elseif randV <= 2200 then 
-            -- 12%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
+            -- 7%控制赢：随机一个玩家赢，随机一个AI输；若无AI，随机一个其他玩家输
             if #robotSeatList > 0 then
                 log.debug("idx(%s,%s,%s) global control 3", self.id, self.mid, self.logid)
                 self:dealHandCardsCommon(realPlayerSeatList[rand.rand_between(1,#realPlayerSeatList)], robotSeatList[rand.rand_between(1,#robotSeatList)])
@@ -2527,7 +2555,7 @@ function Room:dealHandCards()
                 self:dealHandCardsCommon(realPlayerSeatList[rand.rand_between(1,#realPlayerSeatList)], nil)
             end
         else
-            -- 73%不控制输赢
+            -- 79%不控制输赢
             log.debug("idx(%s,%s,%s) global control 5", self.id, self.mid, self.logid)
             self:dealHandCardsCommon()
         end  
@@ -2843,6 +2871,9 @@ function Room:finish()
                     self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
                 end
             end
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), user.uid, seat.chips)
+            end
         end
     end
 
@@ -3078,6 +3109,9 @@ function Room:userBuyin(uid, linkid, rev, system)
             seat:setIsBuyining(false)
             user.totalbuyin = seat.totalbuyin
             seat:buyinToChips()
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), uid, seat.chips)
+            end
 
             pb.encode(
                 "network.cmd.PBTexasPlayerBuyin",
@@ -3750,3 +3784,6 @@ function Room:updatePlayChips()
         end
     end
 end
+
+
+

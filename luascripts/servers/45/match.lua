@@ -28,6 +28,7 @@ local conf = {
         profitrate_threshold_minilimit = 0.1, -- 最低盈利率
         profitrate_threshold_lowerlimit = 0.15, -- 盈利阈值触发收紧策略   系统盈利率
         profitrate_threshold_upperlimit = 0.3, -- 盈利阈值触发放水策略
+        profit_max_win = 10,
         profitrate_threshold_maxdays = 3, -- 盈利阈值触发盈利天数
         time_per_card = 300, -- 每发一张牌需要多长时间  300ms
         min_player_num = 1, -- 随机最少人数

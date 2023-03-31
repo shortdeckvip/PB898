@@ -29,6 +29,7 @@ local conf = {
         profitrate_threshold_lowerlimit = 0.15, -- 盈利阈值触发收紧策略
         profitrate_threshold_upperlimit = 0.3, -- 盈利阈值触发防水策略
         profitrate_threshold_maxdays = 3, -- 盈利阈值触发盈利天数
+        profit_max_win = 10,
         configcards = {},
         min_player_num = 1, -- 随机最少人数
         max_player_num = 5, -- 随机最大人数

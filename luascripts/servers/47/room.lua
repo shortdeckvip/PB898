@@ -213,6 +213,8 @@ function Room:init()
     self.needRobotNum = 30 -- 默认需要创建30个机器人
     self.lastNeedRobotTime = 0  -- 上次需要机器人时刻
     --self.isTest = true
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
+     
 end
 
 -- 重置这一局数据
@@ -591,6 +593,13 @@ function Room:userInto(uid, linkid, rev)
     user.mobile = rev.mobile
     user.roomid = self.id
     user.matchid = self.mid
+    user.playerinfo = user.playerinfo or { extra = {} }
+    user.totalbet = user.totalbet or 0
+    user.profit = user.profit or 0
+    user.totalprofit = user.totalprofit or 0
+    user.totalpureprofit = user.totalpureprofit or 0
+    user.totalfee = user.totalfee or 0
+    user.bets = user.bets or g.copy(DEFAULT_BET_TABLE)
 
     user.mutex = coroutine.create(-- 创建一个新协程。 返回这个新协程，它是一个类型为 `"thread"` 的对象。
         function(user)
@@ -1573,7 +1582,7 @@ function Room:show()
                 local rnd = rand.rand_between(1, 10000)
                 if profit_rate < self:conf().profitrate_threshold_minilimit or rnd <= 5000 then
                     local realPlayerWin = self:GetRealPlayerWin(winArea)
-                    if realPlayerWin > 10000 then
+                    if realPlayerWin > self:conf().profit_max_win then
                         -- 需要确保系统赢，换牌系统不一定赢
                         self:getCardsByResult(-1, 0) -- 确保真实玩家输
                         winArea, winCardsType = self.poker:getWinType(self.cardsA, self.cardsB) -- 获取所有赢的区域及大牌牌型
@@ -2291,6 +2300,7 @@ function Room:userTableInfo(uid, linkid, rev)
     local user = self.users[uid]
     if user then
         --t.data.player = user.playerinfo -- 玩家信息(玩家ID、昵称、金额等)
+        user.playerinfo = user.playerinfo or {extra = {}}
         t.data.player.uid = uid -- 玩家UID
         t.data.player.nickname = user.playerinfo.nickname or "" -- 昵称
         t.data.player.username = user.playerinfo.username or ""
@@ -2634,3 +2644,6 @@ function Room:needRedeal(cardsA, cardsB)
     end
     return false
 end
+
+
+

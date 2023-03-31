@@ -1,5 +1,5 @@
 
-ˆ$
+¢$
 rummy.protonetwork.cmdcommon.proto"*
 RummyGroupCardData
 cards (Rcards"ƒ
@@ -27,7 +27,7 @@ chipinTime
 score (Rscore
 	foldcards (R	foldcards
 	leftcards (R	leftcards(
-leftDeclareTime (RleftDeclareTime"Î
+leftDeclareTime (RleftDeclareTime"è
 PBRummyTableInfo
 gameId (RgameId
 	seatCount (R	seatCount
@@ -62,7 +62,8 @@ maxbuyinbb (R
 maxbuyinbb
 	foldcards (R	foldcards
 	leftcards (R	leftcards 
-middlebuyin (Rmiddlebuyin"S
+middlebuyin (Rmiddlebuyin
+maxinto (Rmaxinto"S
 PBRummyTableInfoResp;
 	tableInfo (2.network.cmd.PBRummyTableInfoR	tableInfo"ˆ
 PBRummyPlayerSit4

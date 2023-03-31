@@ -1,5 +1,5 @@
 
-ž 
+¸ 
 samgong.protonetwork.cmdcommon.proto"’
 PBSamGongSeat+
 seat (2.network.cmd.PBSeatInfoRseat
@@ -22,7 +22,7 @@ chipinTime
 reserveSeat (RreserveSeat
 	totalTime (R	totalTime 
 addtimeCost (RaddtimeCost"
-addtimeCount (RaddtimeCount"Ù
+addtimeCount (RaddtimeCount"ó
 PBSamGongTableInfo
 gameId (RgameId
 	seatCount (R	seatCount
@@ -55,7 +55,8 @@ matchState
 toolCost (RtoolCost
 jpid (Rjpid
 jp (Rjp
-	jp_ratios (RjpRatios"W
+	jp_ratios (RjpRatios
+maxinto (Rmaxinto"W
 PBSamGongTableInfoResp=
 	tableInfo (2.network.cmd.PBSamGongTableInfoR	tableInfo"Œ
 PBSamGongHandCards

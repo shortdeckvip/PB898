@@ -214,6 +214,7 @@ function Room:init()
     self.hasCreateTimer = false
     self.needRobotNum = 30 -- 默认需要创建30个机器人   每20分钟更新一次该值
     self.lastNeedRobotTime = 0  -- 上次需要机器人时刻
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
 end
 
 -- 一局结束重置
@@ -622,9 +623,18 @@ function Room:userInto(uid, linkid, rev)
     user.uid = uid
     user.state = EnumUserState.Intoing
     user.linkid = linkid
-    --user.token = rev.yptoken
     user.ip = rev.ip or ""
     user.mobile = rev.mobile
+    user.roomid = self.id
+    user.matchid = self.mid
+    user.playerinfo = user.playerinfo or { extra = {} }
+    user.totalbet = user.totalbet or 0
+    user.profit = user.profit or 0
+    user.totalprofit = user.totalprofit or 0
+    user.totalpureprofit = user.totalpureprofit or 0
+    user.totalfee = user.totalfee or 0
+    user.bets = user.bets or g.copy(DEFAULT_BET_TABLE)
+
     user.mutex = coroutine.create(
         function(user)
         mutex.request(
@@ -1450,11 +1460,11 @@ function Room:show()
             log.info("idx(%s,%s) tigh mode is trigger", self.mid, self.id)
             -- 计算真实玩家的输赢金额
             local realPlayerWin = self:GetRealPlayerWin(cardsA, cardsB, cardsPub)
-            if realPlayerWin > 10000 then
+            if realPlayerWin > self:conf().profit_max_win then
                 local rnd = rand.rand_between(1, 10000)
                 if profit_rate < self:conf().profitrate_threshold_minilimit or rnd <= 5000 then
                     -- 需要重新发牌
-                    for i = 1, 3, 1 do
+                    for i = 1, 5, 1 do
                         -- 生成牌，计算牌型
                         self.poker:reset()
                         cardsA, cardsB = self.poker:getMNCard(2, 2) -- 牛仔牌，公牛牌
@@ -2365,6 +2375,7 @@ function Room:userTableInfo(uid, linkid, rev)
     -- t.data.player = user.playerinfo
     local user = self.users[uid]
     if user and user.playerinfo then
+        user.playerinfo = user.playerinfo or {}
         t.data.player.uid = uid -- 玩家UID
         t.data.player.nickname = user.playerinfo.nickname or "" -- 昵称
         t.data.player.username = user.playerinfo.username or ""
@@ -2590,3 +2601,5 @@ function Room:createRobotResult(robotsInfo)
     end
     Utils:addRobot(self, robotsInfo) -- 增加机器人
 end
+
+

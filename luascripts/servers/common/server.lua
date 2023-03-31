@@ -14,12 +14,22 @@ function OnServerStartUp()
                 global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Joker") or
                 global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_QiuQiu") or
                 global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Rummy") or
-                global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Slot")
+                global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Slot") or
+                global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_SlotFarm") or
+                global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_SlotSea") or
+                global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_SlotShip")
          then
             JackpotMgr:init()
         end
         if global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_Slot") then
             Utils:unSerializeMiniGame(SLOT_INFO, nil, global.stype()) -- 获取该玩家最近几天的所有押注信息
+            log.debug("dqw Utils:unSerializeMiniGame(SLOT_INFO)")
+        elseif global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_SlotFarm") then
+            Utils:unSerializeMiniGame(SLOT_FARM_INFO, nil, global.stype()) -- 获取该玩家最近几天的所有押注信息
+        elseif global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_SlotSea") then
+            Utils:unSerializeMiniGame(SLOT_SEA_INFO, nil, global.stype()) -- 获取该玩家最近几天的所有押注信息
+        elseif global.stype() == pb.enum_id("network.cmd.PBMainCmdID", "PBMainCmdID_SlotShip") then
+            Utils:unSerializeMiniGame(SLOT_SHIP_INFO, nil, global.stype()) -- 获取该玩家最近几天的所有押注信息
         end
         UploadPlayerModule.enableUploadPlayerCount()
     end

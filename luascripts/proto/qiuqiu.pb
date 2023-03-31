@@ -1,5 +1,5 @@
 
-â#
+ü#
 qiuqiu.protonetwork.cmdcommon.proto"Ù
 PBQiuQiuSeat+
 seat (2.network.cmd.PBSeatInfoRseat
@@ -24,7 +24,7 @@ chipinTime
 addtimeCost (RaddtimeCost"
 addtimeCount (RaddtimeCount(
 confirmLeftTime (RconfirmLeftTime
-	isconfirm (R	isconfirm"ù
+	isconfirm (R	isconfirm"“
 PBQiuQiuTableInfo
 gameId (RgameId
 	seatCount (R	seatCount
@@ -58,7 +58,8 @@ matchState
 jpid (Rjpid
 jp (Rjp
 	jp_ratios (RjpRatios 
-middlebuyin (Rmiddlebuyin"U
+middlebuyin (Rmiddlebuyin
+maxinto (Rmaxinto"U
 PBQiuQiuTableInfoResp<
 	tableInfo (2.network.cmd.PBQiuQiuTableInfoR	tableInfo"Y
 PBQiuQiuHandCards

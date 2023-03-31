@@ -1,5 +1,5 @@
 
-Ì
+º
 andarbahar.protonetwork.cmdcommon.proto"‰
 PBAndarBaharNotifyStart_N
 t (Rt
@@ -81,7 +81,15 @@
 EnumAndarBaharState_Start
 EnumAndarBaharState_Betting
 EnumAndarBaharState_Show
-EnumAndarBaharState_Finish*P
+EnumAndarBaharState_Finish*½
 EnumAndarBaharType
 EnumAndarBaharType_Andar
-EnumAndarBaharType_Bahar
+EnumAndarBaharType_Bahar
+EnumAndarBaharType_1_5
+EnumAndarBaharType_6_10
+EnumAndarBaharType_11_15
+EnumAndarBaharType_16_25
+EnumAndarBaharType_26_30
+EnumAndarBaharType_31_35
+EnumAndarBaharType_36_40	
+EnumAndarBaharType_41_52

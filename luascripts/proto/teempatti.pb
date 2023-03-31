@@ -1,5 +1,5 @@
 
-‘)
+Ó)
 teempatti.protonetwork.cmdcommon.proto"‡
 PBTeemPattiSeat+
 seat (2.network.cmd.PBSeatInfoRseat
@@ -25,7 +25,7 @@ chipinTime
 addtimeCount (RaddtimeCount
 ischall (Rischall 
 totalChipin (RtotalChipin
-	cardsType (R	cardsType"–
+	cardsType (R	cardsType"Í
 PBTeemPattiTableInfo
 gameId (RgameId
 	seatCount (R	seatCount
@@ -53,7 +53,8 @@ matchState
 addtimeCost (RaddtimeCost
 	duelerPos (R	duelerPos
 	dueledPos (R	dueledPos 
-middlebuyin (Rmiddlebuyin"[
+middlebuyin (Rmiddlebuyin
+maxinto (Rmaxinto"[
 PBTeemPattiTableInfoResp?
 	tableInfo (2!.network.cmd.PBTeemPattiTableInfoR	tableInfo"ê
 PBTeemPattiPlayerSit8

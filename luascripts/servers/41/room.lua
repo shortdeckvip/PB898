@@ -466,6 +466,8 @@ function Room:init()
 
     self.tableStartCount = 0
     self.logid = self.statistic:genLogId()
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
+     
 end
 
 function Room:reload()
@@ -771,6 +773,10 @@ function Room:userLeave(uid, linkid)
         timer.destroy(user.TimerID_Expense)
     end
 
+    if not Utils:isRobot(user.api) then
+        Utils:updateChipsNum(global.sid(), uid, 0)
+    end
+
     self.users[uid] = nil
     self.user_cached = false
 
@@ -1033,6 +1039,9 @@ function Room:userInto(uid, linkid, mid, quick, ip, api)
                             timer.destroy(user.TimerID_MutexTo)
                             timer.destroy(user.TimerID_Timeout)
                             timer.destroy(user.TimerID_Expense)
+                            if not Utils:isRobot(self.users[uid].api) then
+                                Utils:updateChipsNum(global.sid(), uid, 0)
+                            end
                             self.users[uid] = nil
                             net.send(
                                 linkid,
@@ -1202,7 +1211,8 @@ function Room:userTableInfo(uid, linkid, rev)
         potLimit = TEEMPATTICONF.max_pot_limit * self.conf.ante,
         duelerPos = self.m_dueler_pos,
         dueledPos = self.m_dueled_pos,
-        middlebuyin = self.conf.referrerbb * self.conf.ante
+        middlebuyin = self.conf.referrerbb * self.conf.ante,
+        maxinto = (self.conf.maxinto or 0) * (self.conf.ante or 0) / (self.conf.sb or 1)
     }
     log.debug(
         "idx(%s,%s,%s) uid:%s userTableInfo:%s",
@@ -1520,6 +1530,9 @@ function Room:stand(seat, uid, stype)
         user.active_stand = true
 
         seat:stand(uid)
+        if not Utils:isRobot(user.api) then
+            Utils:updateChipsNum(global.sid(), uid, user.chips)
+        end
         pb.encode(
             "network.cmd.PBTexasPlayerStand",
             {sid = seat.sid, type = stype},
@@ -3154,6 +3167,9 @@ function Room:finish()
                     self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
                 end
             end
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), user.uid, seat.chips)
+            end
         end
     end
     if self:needLog() then
@@ -3500,7 +3516,9 @@ function Room:userBuyin(uid, linkid, rev, system)
             user.totalbuyin = seat.totalbuyin
 
             seat:buyinToChips()
-
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), uid, seat.chips)
+            end
             pb.encode(
                 "network.cmd.PBTexasPlayerBuyin",
                 {
@@ -4302,3 +4320,5 @@ function Room:checkWinnerAndLoserAreAllReal()
 
     return self.maxWinnerLoserAreAllReal -- 默认都是真人
 end
+
+

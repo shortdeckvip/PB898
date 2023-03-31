@@ -34,6 +34,7 @@ local conf = {
         profitrate_threshold_upperlimit = 0.3, -- 盈利阈值触发防水策略
         banker_profitrate_threshold_lowerlimit = 0.15, -- 庄家盈利阈值触发收紧策略
         profitrate_threshold_maxdays = 3, -- 盈利阈值触发盈利天数
+        profit_max_win = 10,
         min_player_num = 1, -- 随机最少人数
         max_player_num = 5, -- 随机最大人数
         update_interval = 5, -- 多少局更新一次

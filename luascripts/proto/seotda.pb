@@ -1,5 +1,5 @@
 
-Ò6
+ì6
 seotda.protonetwork.cmdcommon.proto"h
 PBSeotdaBlindLevelInfo
 lv (Rlv
@@ -58,7 +58,7 @@ chipinTime
 canRaise' (RcanRaise"
 canRaiseHalf( (RcanRaiseHalf(
 canRaiseQuarter) (RcanRaiseQuarter
-canAllIn* (RcanAllIn"“
+canAllIn* (RcanAllIn"­
 
 PBSeotdaTableInfo
 gameId (RgameId
@@ -113,7 +113,8 @@ smallBlind
 
 replayType' (R
 replayType 
-roundMaxBet( (RroundMaxBet"U
+roundMaxBet( (RroundMaxBet
+maxinto) (Rmaxinto"U
 PBSeotdaTableInfoResp<
 	tableInfo (2.network.cmd.PBSeotdaTableInfoR	tableInfo"Š
 PBSeotdaPlayerSit5

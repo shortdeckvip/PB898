@@ -172,6 +172,8 @@ function Room:init()
     self.lastRemoveRobotTime = 0 -- 上次移除机器人时刻(秒)
     self.needRobotNum = 30 -- 默认需要创建30个机器人
     self.lastNeedRobotTime = 0  -- 上次需要机器人时刻
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
+     
 end
 
 -- 本局重置
@@ -561,6 +563,18 @@ function Room:userInto(uid, linkid, rev, isGetTableInfo)
     user.uid = uid
     user.state = EnumUserState.Intoing
     user.linkid = linkid
+
+    user.roomid = self.id
+    user.matchid = self.mid
+    user.playerinfo = user.playerinfo or { extra = {} }
+    user.totalbet = user.totalbet or 0
+    user.profit = user.profit or 0
+    user.totalprofit = user.totalprofit or 0
+    user.totalpureprofit = user.totalpureprofit or 0
+    user.totalfee = user.totalfee or 0
+    user.bets = user.bets or g.copy(DEFAULT_BET_TABLE)
+    
+
     if not isGetTableInfo then
         --user.token = rev.yptoken
         user.ip = rev.ip or ""
@@ -1399,9 +1413,9 @@ function Room:show()
                 if profit_rate < self:conf().profitrate_threshold_minilimit or rnd <= 5000 then
                     -- 计算真实玩家输赢情况
                     local realPlayerWin = self:GetRealPlayerWin(cardsA, cardsB)
-                    if realPlayerWin > 10000 then
+                    if realPlayerWin > self:conf().profit_max_win then
                         -- 需要重新发牌
-                        for i = 0, 3, 1 do
+                        for i = 0, 5, 1 do
                             -- 生成牌，计算牌型
                             self.poker:reset()
                             cardsA, cardsB = self.poker:getMNCard(2, 3) -- 牛仔牌，公牛牌
@@ -2093,6 +2107,7 @@ function Room:kickout()
 end
 
 -- 获取总的盈利率
+-- 返回值: 盈利率, 该局真实玩家总下注额, 该局真实玩家总赢额 
 function Room:getTotalProfitRate(wintype)
     local totalbets, totalprofit = 0, 0
     local sn = 0
@@ -2302,6 +2317,7 @@ function Room:userTableInfo(uid, linkid, rev)
     -- t.data.player = user.playerinfo
     local user = self.users[uid]
     if user and user.playerinfo then
+        user.playerinfo =  user.playerinfo or {}
         t.data.player.uid = uid -- 玩家UID
         t.data.player.nickname = user.playerinfo.nickname or "" -- 昵称
         t.data.player.username = user.playerinfo.username or ""
@@ -2525,3 +2541,5 @@ function Room:createRobotResult(robotsInfo)
     end
     Utils:addRobot(self, robotsInfo) -- 增加机器人
 end
+
+

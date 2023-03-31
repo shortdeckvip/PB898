@@ -407,6 +407,9 @@ local function onCheck(self)
                     -- seat:reset() -- 重置座位
                     if seat:hasBuyin() then -- 上局正在玩牌（非 fold）且已买入成功则下局生效
                         seat:buyinToChips()
+                        if not Utils:isRobot(user.api) then
+                            Utils:updateChipsNum(global.sid(), uid, seat.chips)
+                        end
                         pb.encode(
                             "network.cmd.PBTexasPlayerBuyin", --
                             {
@@ -730,6 +733,8 @@ function Room:init()
     self.lastWinnerUID = 0 -- 上一局赢家UID(每局游戏结束时更新)
     self.has_player_inplay = false
     self.replayType = 0
+    self.calcChipsTime = 0           -- 计算筹码时刻(秒)
+     
 end
 
 -- 重新加载配置信息
@@ -1071,6 +1076,9 @@ function Room:userLeave(uid, linkid)
         timer.destroy(user.TimerID_Expense)
     end
 
+    if not Utils:isRobot(user.api) then
+        Utils:updateChipsNum(global.sid(), uid, 0)
+    end
     self.users[uid] = nil
     self.user_cached = false
 
@@ -1361,6 +1369,9 @@ function Room:userInto(uid, linkid, mid, quick, ip, api)
                             timer.destroy(user.TimerID_MutexTo)
                             timer.destroy(user.TimerID_Timeout)
                             timer.destroy(user.TimerID_Expense)
+                            if not Utils:isRobot(self.users[uid].api) then
+                                Utils:updateChipsNum(global.sid(), uid, 0)
+                            end
                             self.users[uid] = nil
                         end
                         log.info(
@@ -1535,7 +1546,8 @@ function Room:userTableInfo(uid, linkid, rev)
         operatePos = self.current_betting_pos or 0,
         leftTime = 10000, -- 该状态剩余时长(毫秒)
         replayType = self.replayType or 0, -- 重赛类型
-        roundMaxBet = self:getRoundMaxBet() -- 本轮最大下注金额
+        roundMaxBet = self:getRoundMaxBet(), -- 本轮最大下注金额
+        maxinto = (self.conf.maxinto or 0) * (self.conf.ante or 0) / (self.conf.sb or 1)
     }
 
     if self.conf.matchtype == pb.enum_id("network.cmd.PBTexasMatchType", "PBTexasMatchType_Regular") then
@@ -1864,6 +1876,9 @@ function Room:stand(seat, uid, stype)
         user.active_stand = true
 
         seat:stand(uid) -- 玩家站起
+        if not Utils:isRobot(user.api) then
+            Utils:updateChipsNum(global.sid(), uid, user.chips)
+        end
         pb.encode(
             "network.cmd.PBTexasPlayerStand",
             { sid = seat.sid, type = stype },
@@ -3117,6 +3132,9 @@ function Room:finish()
                     self.sdata.users[seat.uid].extrainfo = cjson.encode(extrainfo)
                 end
             end
+            if not Utils:isRobot(user.api) then
+                Utils:updateChipsNum(global.sid(), user.uid, seat.chips)
+            end
         end
     end
 
@@ -3183,6 +3201,10 @@ function Room:roundOver()
                 seat.betmoney = seat.total_bets
                 seat.chips = seat.chips > seat.roundmoney and seat.chips - seat.roundmoney or 0 -- 身上剩余筹码
                 seat.roundmoney = 0
+                local user = self.users[seat.uid]
+                if user and not Utils:isRobot(user.api) then
+                    Utils:updateChipsNum(global.sid(), seat.uid, seat.chips or 0)
+                end
             end
         end
     end
@@ -3461,6 +3483,9 @@ function Room:userBuyin(uid, linkid, rev, system)
                 self.state == pb.enum_id("network.cmd.PBSeotdaTableState", "PBSeotdaTableState_None")
             then
                 seat:buyinToChips()
+                if not Utils:isRobot(user.api) then
+                    Utils:updateChipsNum(global.sid(), uid, seat.chips)
+                end
             else
                 is_immediately = false
             end

@@ -1,5 +1,5 @@
 
-…*
+Ÿ*
 dummy.protonetwork.cmdcommon.proto"#
 PBDummyHole
 cards (Rcards"=
@@ -34,7 +34,7 @@ chipinTime
 	canshow2q (R	canshow2q
 
 handcreate (R
-handcreate"¬
+handcreate"Æ
 PBDummyTableInfo
 gameId (RgameId
 	seatCount (R	seatCount
@@ -64,7 +64,8 @@ minbuyinbb (R
 minbuyinbb
 
 maxbuyinbb (R
-maxbuyinbb"S
+maxbuyinbb
+maxinto (Rmaxinto"S
 PBDummyTableInfoResp;
 	tableInfo (2.network.cmd.PBDummyTableInfoR	tableInfo"H
 PBDummyPlayerSit4

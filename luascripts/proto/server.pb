@@ -1,5 +1,5 @@
 
-´‘
+ì•
 server.protonetwork.inter"M
 SharedSynData
 uids (Ruids
@@ -374,14 +374,20 @@ cresttimes
 Game2UserUpdateProfitInfo
 ctx (Rctx9
 data (2%.network.inter.PBUserProfitUpdateDataRdata
-ispvp (Rispvp"Ï
+ispvp (Rispvp"ç
 Game2UserProfitResultReqResp
 ctx (Rctx
 matchid (Rmatchid
 roomid (Rroomid9
 data (2%.network.inter.PBUserProfitResultDataRdata
 ispvp (Rispvp
-isglobal (Risglobal"Ž
+isglobal (Risglobal
+gameid (Rgameid"›
+Game2UserProfitInfoReqResp
+ctx (Rctx
+matchid (Rmatchid
+roomid (Rroomid9
+data (2%.network.inter.PBUserProfitUpdateDataRdata"Ž
 Game2UserQueryChargeInfo
 uid (Ruid
 matchid (Rmatchid
@@ -609,7 +615,7 @@ $Game2StatisticSubCmd_PlayHandReqResp*å
 MONEY_CHANGE_COIN
 MONEY_CHANGE_TOOL
 MONEY_CHANGE_VIP
-MONEY_CHANGE_DIAMOND*õ	
+MONEY_CHANGE_DIAMOND*Ì
 MONEY_CHANGE_REASON
 MONEY_CHANGE_TRAIN
 MONEY_CHANGE_CHARGE
@@ -653,22 +659,34 @@ $Game2StatisticSubCmd_PlayHandReqResp*å
 MONEY_CHANGE_DICE6_BET(
 MONEY_CHANGE_DICE6_SETTLE)
 MONEY_CHANGE_SLOTFARM_BET* 
-MONEY_CHANGE_SLOTFARM_SETTLE+
+MONEY_CHANGE_SLOTFARM_SETTLE+
+MONEY_CHANGE_SLOTSEA_BET,
+MONEY_CHANGE_SLOTSEA_SETTLE-
+MONEY_CHANGE_SLOTSHIP_BET. 
+MONEY_CHANGE_SLOTSHIP_SETTLE/
+MONEY_CHANGE_CRASH_BET0
+MONEY_CHANGE_CRASH_SETTLE1
+MONEY_CHANGE_TP2CARDS_BET2 
+MONEY_CHANGE_TP2CARDS_SETTLE3
 MONEY_CHANGE_WHEEL_SETTLEÊ
-MONEY_CHANGE_WHEEL_BETË*r
+MONEY_CHANGE_WHEEL_BETË
+MONEY_CHANGE_LEVELÎ
+MONEY_CHANGE_ACT_FIRST_PAYÐ
+MONEY_CHANGE_ACT_DAILY_PAYÑ*r
 USER_ROLE_TYPE
 USER_ROLE_BANKER
 USER_ROLE_TEXAS_SB
 USER_ROLE_TEXAS_BB	
 USER_ROLE_TEXAS_PLAYER
-*‡
+*²
 Game2UserInfoSubCmd&
 "Game2UserInfoSubCmd_UserAtomUpdate 
 Game2UserInfoSubCmd_PostMail&
 "Game2UserInfoSubCmd_JackpotReqResp(
 $Game2UserInfoSubCmd_UpdateProfitInfo+
 'Game2UserInfoSubCmd_ProfitResultReqResp'
-#Game2UserInfoSubCmd_QueryChargeInfo*@
+#Game2UserInfoSubCmd_QueryChargeInfo)
+%Game2UserInfoSubCmd_ProfitInfoReqResp*@
 MAILBOX_TYPE
 MAILBOX_TYPE_MAIL
 MAILBOX_TYPE_ANNOUNCE*;
