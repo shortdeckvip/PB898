@@ -1,4 +1,4 @@
 <?xml version="1.0"?>
 <SERVER>
-	<srv id="655361" gameid="38" redisid="5001" mongoid="7000" mongorepset="" mongolog=""/>
+	<srv id="655361" gameid="38" redisid="5000,5001" mongoid="7000" mongorepset="" mongolog=""/>
 </SERVER>
