@@ -358,6 +358,11 @@ function Room:new(o)
 end
 
 function Room:destroy()
+    if self.needStatistic then
+        self.statistic:appendLogs(self.sdata, self.logid)
+        self.needStatistic = false
+        log.info("idx(%s,%s,%s) destroy() ", self.id, self.mid, tostring(self.logid))
+    end
     timer.destroy(self.timer)
 end
 
@@ -415,6 +420,7 @@ function Room:init()
     self.m_winner_sid = 0
     self.logid = self.statistic:genLogId()
     self.calcChipsTime = 0           -- 计算筹码时刻(秒)
+    self.needStatistic = false   -- 是否需要统计
      
 end
 
@@ -1798,6 +1804,7 @@ function Room:start()
     )
 
     -- 数据统计
+    self.needStatistic = true
     self.sdata.stime = self.starttime
     self.sdata.gameinfo = self.sdata.gameinfo or {}
     self.sdata.gameinfo.texas = self.sdata.gameinfo.texas or {}
@@ -2876,8 +2883,10 @@ function Room:finish()
             end
         end
     end
-
-    self.statistic:appendLogs(self.sdata, self.logid)
+    if self.needStatistic then
+        self.statistic:appendLogs(self.sdata, self.logid)
+        self.needStatistic = false   -- 是否需要统计
+    end
     timer.tick(self.timer, TimerID.TimerID_OnFinish[1], self.t_msec, onFinish, self)
 end
 

@@ -1550,10 +1550,10 @@ function Room:show()
             if #msg.data > 0 then
                 Utils:queryProfitResult(msg)
             end
-            if self:isGlodDice() then
-                self.winTimes = 5   -- 是黄金骰子  (黄金骰子是5倍)
-                log.debug("idx(%s,%s) self.winTimes = 5", self.mid, self.id)
-            end
+            -- if self:isGlodDice() then
+            --     self.winTimes = 5   -- 是黄金骰子  (黄金骰子是5倍)
+            --     log.debug("idx(%s,%s) self.winTimes = 5", self.mid, self.id)
+            -- end
             local profit_rate, usertotalbet_inhand, usertotalprofit_inhand = self:getTotalProfitRate(wintype)
             local last_profitrate = profit_rate
             if profit_rate < self:conf().profitrate_threshold_lowerlimit then  -- 系统总盈利比例 < 盈利比例限制

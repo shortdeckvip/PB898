@@ -179,6 +179,16 @@ function Utils:requestJackpot(msg)
     )
 end
 
+function Utils:reportMoneyLog(msg)
+    return net.forward(
+        STATISTIC_SERVER_TYPE,
+        pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Statistic"),
+        pb.enum_id("network.inter.Game2StatisticSubCmd", "Game2StatisticSubCmd_MoneyChangedReq"),
+        pb.encode("network.inter.PBMoneyChangeReportReq", msg)
+    )
+end
+
+
 
 -- 请求更新jackpot值  2022-8-20 10:49:17
 function Utils:requestJackpotChange(msg)

@@ -445,6 +445,14 @@ function Room:new(o)
 end
 
 function Room:destroy()
+    log.info("idx(%s,%s,%s) destroy()", self.id, self.mid, tostring(self.logid))
+
+    if self:needLog() and self.needStatistic then
+        self.statistic:appendLogs(self.sdata, self.logid)
+        self.needStatistic = false
+        log.info("idx(%s,%s,%s) destroy() 2", self.id, self.mid, tostring(self.logid))
+    end
+
     timer.destroy(self.timer)
 end
 
@@ -528,6 +536,7 @@ function Room:init()
     self.isControl = false -- 是否控制真实玩家输赢
     self.sameStraightFlushNum = 0
     self.calcChipsTime = 0            -- 计算筹码时刻(秒)
+    self.needStatistic = false   -- 是否需要统计
 end
 
 -- 重新加载配置
@@ -2036,6 +2045,7 @@ function Room:start()
     end
 
     -- 数据统计
+    self.needStatistic = true   -- 是否需要统计
     self.sdata.stime = self.starttime
     self.sdata.gameinfo = self.sdata.gameinfo or {}
     self.sdata.gameinfo.texas = self.sdata.gameinfo.texas or {}
@@ -3672,8 +3682,9 @@ function Room:finish()
         end
     end
     self.sdata.etime = self.endtime
-    if self:needLog() then
+    if self:needLog() and self.needStatistic then
         self.statistic:appendLogs(self.sdata, self.logid)
+        self.needStatistic = false   -- 是否需要统计
     end
     timer.tick(self.timer, TimerID.TimerID_OnFinish[1], t_msec, onFinish, self)
 end
