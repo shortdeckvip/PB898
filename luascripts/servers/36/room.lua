@@ -729,7 +729,8 @@ function Room:userLeave(uid, linkid, client)
                 sid = user.sid,
                 userId = user.userId,
                 transactionId = g.uuid(),
-                roundId = user.roundId
+                roundId = user.roundId,
+                gameId = tostring(global.stype())
             }
         )
         user.chips = 0 -- 默认已全部转换为金币
@@ -2767,7 +2768,8 @@ function Room:userBuyin(uid, linkid, rev, system)
                     sid = user.sid,
                     userId = user.userId,
                     transactionId = g.uuid(),
-                    roundId = user.roundId
+                    roundId = user.roundId,
+                    gameId = tostring(global.stype())
                 }
             )
             local ok = coroutine.yield() -- 等待结果
@@ -2959,7 +2961,8 @@ function Room:userTool(uid, linkid, rev)
                         api = "expense",
                         sid = user.sid,
                         userId = user.userId,
-                        transactionId = g.uuid()
+                        transactionId = g.uuid(),
+                        gameId = tostring(global.stype())
                     }
                 )
                 local ok = coroutine.yield()
@@ -3132,7 +3135,8 @@ function Room:userAddTime(uid, linkid, rev)
                         api = "expense",
                         sid = user.sid,
                         userId = user.userId,
-                        transactionId = g.uuid()
+                        transactionId = g.uuid(),
+                        gameId = tostring(global.stype())
                     }
                 )
                 local ok = coroutine.yield()

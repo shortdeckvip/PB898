@@ -428,12 +428,13 @@ local function onWaitJackpotResult(self)
             self.state = EnumRoomState.Check
             self.stateBeginTime = global.ctsec() -- 该状态开始时刻
 
-            if not self.users[self.uid].isdebiting and self.freeSpinTimes <= 0 and not self.needJackPotResult then -- 如果未中免费旋转且未中jackpot
+            if self.needStatistic and not self.users[self.uid].isdebiting and self.freeSpinTimes <= 0 and not self.needJackPotResult then -- 如果未中免费旋转且未中jackpot
                 Utils:credit(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE")) -- 增加金额(输赢都更新金额)
                 log.debug("Utils:credit(),uid=%s,self.winMoney=%s,userMoney=%s,onWaitJackpotResult()", self.uid,
                     self.winMoney, self:getUserMoney(self.uid))
                 log.debug("uid=%s,self.sdata.jp=%s", self.uid, cjson.encode(self.sdata.jp))
                 self.statistic:appendLogs(self.sdata, self.logid) -- 统计信息
+                self.needStatistic = false
                 self:reset()
 
                 self.winMoney = 0
@@ -754,7 +755,9 @@ function Room:kvdata(data)
 
                 local user = self.users[self.uid] -- 根据玩家ID获取玩家对象
                 if user then
-                    timer.cancel(user.TimerID_FreeSpinTimes, TimerID.TimerID_FreeSpinTimes[1])
+                    if user.TimerID_FreeSpinTimes then
+                        timer.cancel(user.TimerID_FreeSpinTimes, TimerID.TimerID_FreeSpinTimes[1])
+                    end
                     log.debug(
                         "idx(%s,%s,%s) kvdata(), uid=%s ",
                         self.id,
@@ -876,7 +879,9 @@ end
 function Room:userFreeSpinTimes(uid, data)
     local user = self.users[uid]
     if user then
-        timer.cancel(user.TimerID_FreeSpinTimes, TimerID.TimerID_FreeSpinTimes[1])
+        if user.TimerID_FreeSpinTimes then
+            timer.cancel(user.TimerID_FreeSpinTimes, TimerID.TimerID_FreeSpinTimes[1])
+        end
         log.debug(
             "idx(%s,%s,%s) userFreeSpinTimes(), uid=%s data:%s",
             self.id,
@@ -983,7 +988,7 @@ function Room:userInto(uid, linkid, rev)
         return
     end
 
-    self.needGetFreeSpinTimes = true
+    self.needGetFreeSpinTimes = false
     if self.uid and self.uid ~= 0 then -- 如果该桌已有玩家
         if self.uid ~= uid then
             handleFail(pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameFail"))
@@ -1035,6 +1040,7 @@ function Room:userInto(uid, linkid, rev)
                     end
                     if user and user.TimerID_FreeSpinTimes then
                         timer.destroy(user.TimerID_FreeSpinTimes)
+                        user.TimerID_FreeSpinTimes = nil
                     end
                     self.users[uid] = nil
                     t.code = pb.enum_id("network.cmd.PBLoginCommonErrorCode", "PBLoginErrorCode_IntoGameFail") -- 进入房间失败
@@ -1117,7 +1123,10 @@ function Room:userInto(uid, linkid, rev)
                         if self.users[uid] ~= nil then
                             timer.destroy(user.TimerID_MutexTo)
                             timer.destroy(user.TimerID_Timeout)
-                            timer.destroy(user.TimerID_FreeSpinTimes)
+                            if user.TimerID_FreeSpinTimes then
+                                timer.destroy(user.TimerID_FreeSpinTimes)
+                                user.TimerID_FreeSpinTimes = nil
+                            end 
                             self.users[uid] = nil
                             net.send(
                                 linkid,
@@ -1170,7 +1179,7 @@ function Room:userInto(uid, linkid, rev)
                                 GetUserKVData(user.uid, self.mid, self.id)
                                 local ret = coroutine.yield() -- 挂起协程，等待结果
 
-                                if ret then
+                                if ret and user.TimerID_FreeSpinTimes then
                                     --关闭定时器
                                     timer.cancel(user.TimerID_FreeSpinTimes, TimerID.TimerID_FreeSpinTimes[1]) -- 关闭定时器
                                 end
@@ -1224,13 +1233,15 @@ function Room:userInto(uid, linkid, rev)
                             end
                         )
                         --设置定时器
-                        timer.tick(
-                            user.TimerID_FreeSpinTimes,
-                            TimerID.TimerID_FreeSpinTimes[1],
-                            TimerID.TimerID_FreeSpinTimes[2],
-                            onGetFreeSpinTimes,
-                            { uid, self }
-                        )
+                        if user.TimerID_FreeSpinTimes then
+                            timer.tick(
+                                user.TimerID_FreeSpinTimes,
+                                TimerID.TimerID_FreeSpinTimes[1],
+                                TimerID.TimerID_FreeSpinTimes[2],
+                                onGetFreeSpinTimes,
+                                { uid, self }
+                            )
+                        end
                         -- 执行协程
                         coroutine.resume(user.co2, user)
 
@@ -1358,22 +1369,40 @@ function Room:userLeave(uid, linkid)
     --     )
     -- end
 
+    if self.needStatistic then
+        self.users[uid] = self.users[uid] or {}
+        self.users[uid].totalprofit = self.winMoney
+        Utils:credit(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE")) -- 增加金额(输赢都更新金额)
+        log.info("Utils:credit(),uid=%s,self.winMoney=%s,userMoney=%s,userLeave()", uid, self.winMoney, self:getUserMoney(uid))
+
+        log.debug("uid=%s,self.sdata.jp=%s", self.uid, cjson.encode(self.sdata.jp))
+
+        self.sdata.users = self.sdata.users or {}
+        self.sdata.users[uid] = self.sdata.users[uid] or {}
+        self.sdata.users[uid].totalprofit = self.winMoney
+        self.sdata.users[uid].totalpureprofit = self.winMoney - self.bet
+
+        self.statistic:appendLogs(self.sdata, self.logid) -- 统计信息
+        self.needStatistic = false
+    end
+
     mutex.request(
         pb.enum_id("network.inter.ServerMainCmdID", "ServerMainCmdID_Game2Mutex"),
         pb.enum_id("network.inter.Game2MutexSubCmd", "Game2MutexSubCmd_MutexRemove"),
         pb.encode("network.cmd.PBMutexRemove", { uid = uid, srvid = global.sid(), roomid = self.id })
     )
-    -- 如果和进入时的免费旋转次数不同或押注金额不同时才更新  待优化
-    SetUserKVData(
-        self.uid,
-        self.bet,
-        self.freeSpinTimes,
-        self.mid,
-        self.id,
-        self.totalFreeSpinTimes,
-        self.totalFreeSpinWin,
-        self.winMoney
-    )
+    -- -- 如果和进入时的免费旋转次数不同或押注金额不同时才更新  待优化
+    -- SetUserKVData(
+    --     self.uid,
+    --     self.bet,
+    --     self.freeSpinTimes,
+    --     self.mid,
+    --     self.id,
+    --     self.totalFreeSpinTimes,
+    --     self.totalFreeSpinWin,
+    --     self.winMoney
+    -- )
+
     self.lastWin = 0
     local resp = pb.encode("network.cmd.PBLeaveGameRoomResp_S", t)
 
@@ -1404,6 +1433,7 @@ function Room:userLeave(uid, linkid)
     end
     if user.TimerID_FreeSpinTimes then
         timer.destroy(user.TimerID_FreeSpinTimes)
+        user.TimerID_FreeSpinTimes = nil
     end
 
     -- local resp =
@@ -1454,6 +1484,19 @@ function Room:reset()
         cards = { { cards = {} } }
     }
     self.reviewlogitems = {}
+    self.freeSpinTimes = 0 -- 当前剩余免费旋转次数
+    self.pot = 0 -- 奖池
+    self.lastWin = 0 -- 上一局中奖金额
+
+    self.beginMoney = 0 -- 一局游戏开始前身上金额
+    self.winMoney = 0 -- 当前这一局赢得的金额
+    self.currentIsFreeSpin = false -- 当前这一局是否为免费旋转
+    self.index = 1
+
+    self.lastSpinIsFree = false -- 上一局是否是免费旋转
+    self.totalFreeSpinTimes = 0 -- 最近总的免费旋转次数
+    self.beginFreeSpinMoney = 0 -- 开始免费旋转时玩家身上金额
+    self.totalFreeSpinWin = 0 -- 最近连续免费赢得的金额
 end
 
 function Room:start()
@@ -1544,7 +1587,7 @@ function Room:userchipin(uid, type, money, linkid)
         return
     end
     self.linkid = linkid
-
+    self.needStatistic = true
     if self.freeSpinTimes <= 0 then -- 如果当前不是免费旋转
         self.currentIsFreeSpin = false -- 当前这一局不是免费旋转局
         self.index = 1
@@ -1877,7 +1920,7 @@ function Room:userJackPotResp(uid, rev)
             self.stateBeginTime = global.ctsec() -- 该状态开始时刻
 
             -- 检测是否需要更新金额
-            if not self.users[self.uid].isdebiting and self.freeSpinTimes <= 0 and not self.needJackPotResult then -- 如果下一局不是免费旋转且未中jackpot
+            if self.needStatistic and not self.users[self.uid].isdebiting and self.freeSpinTimes <= 0 and not self.needJackPotResult then -- 如果下一局不是免费旋转且未中jackpot
                 self.users[uid] = self.users[uid] or {}
                 self.users[uid].totalprofit = self.winMoney
                 Utils:credit(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE")) -- 增加金额(输赢都更新金额)
@@ -1892,6 +1935,7 @@ function Room:userJackPotResp(uid, rev)
                 self.sdata.users[uid].totalpureprofit = self.winMoney - self.bet
 
                 self.statistic:appendLogs(self.sdata, self.logid) -- 统计信息
+                self.needStatistic = false
                 self:reset()
 
                 self.winMoney = 0
@@ -2511,7 +2555,7 @@ function Room:sendResult(uid, t, linkid)
         self.totalFreeSpinTimes = 0
     end
 
-    if not self.users[self.uid].isdebiting and self.freeSpinTimes <= 0 and not self.needJackPotResult then -- 如果未中免费旋转且未中jackpot
+    if self.needStatistic and not self.users[self.uid].isdebiting and self.freeSpinTimes <= 0 and not self.needJackPotResult then -- 如果未中免费旋转且未中jackpot
         Utils:credit(self, pb.enum_id("network.inter.MONEY_CHANGE_REASON", "MONEY_CHANGE_SLOT_SETTLE")) -- 增加金额(输赢都更新金额)
         log.debug("Utils:credit(),uid=%s,self.winMoney=%s,userMoney=%s,sendResult()", self.uid, self.winMoney,
             self:getUserMoney(self.uid))
@@ -2524,6 +2568,7 @@ function Room:sendResult(uid, t, linkid)
         self.sdata.users[uid].totalpureprofit = self.winMoney - self.bet
 
         self.statistic:appendLogs(self.sdata, self.logid) -- 统计信息
+        self.needStatistic = false
         self:reset()
 
         self.winMoney = 0

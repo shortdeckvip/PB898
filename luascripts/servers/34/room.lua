@@ -654,7 +654,8 @@ function Room:userLeave(uid, linkid, code)
                 sid = user.sid,
                 userId = user.userId,
                 transactionId = g.uuid(),
-                roundId = user.roundId
+                roundId = user.roundId,
+                gameId = tostring(global.stype())
             }
         )
         log.info("idx(%s,%s,%s) money change uid:%s val:%s", self.id, self.mid, tostring(self.logid), uid, val)
@@ -3097,7 +3098,8 @@ function Room:userBuyin(uid, linkid, rev, system)
                     sid = user.sid,
                     userId = user.userId,
                     transactionId = g.uuid(),
-                    roundId = user.roundId
+                    roundId = user.roundId,
+                    gameId = tostring(global.stype())
                 }
             )
             local ok = coroutine.yield()
@@ -3315,7 +3317,8 @@ function Room:userTool(uid, linkid, rev)
                         api = "expense",
                         sid = user.sid,
                         userId = user.userId,
-                        transactionId = g.uuid()
+                        transactionId = g.uuid(),
+                        gameId = tostring(global.stype())
                     }
                 )
                 local ok = coroutine.yield()
@@ -3519,7 +3522,8 @@ function Room:userAddTime(uid, linkid, rev)
                         api = "expense",
                         sid = user.sid,
                         userId = user.userId,
-                        transactionId = g.uuid()
+                        transactionId = g.uuid(),
+                        gameId = tostring(global.stype())
                     }
                 )
                 local ok = coroutine.yield()

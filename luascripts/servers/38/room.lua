@@ -550,7 +550,7 @@ function Room:userLeave(uid, linkid, client)
                 sid = user.sid,
                 userId = user.userId,
                 transactionId = g.uuid(),
-                gameId = self.logid,
+                gameId = tostring(global.stype()),
                 gameType = global.stype(),
                 tableId = global.stype()
             }
